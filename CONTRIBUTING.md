@@ -1,6 +1,6 @@
 # Contributing
 
-Tracepack is a local-first evidence tool. Contributions should keep the v0.1 promise narrow:
+TracePack is a local-first evidence tool. Contributions should keep the v0.1 promise narrow:
 deterministic local evidence, redacted bundles, static reports, and honest limitations.
 
 ## Local Setup
@@ -15,7 +15,7 @@ databases, OAuth flows, or external model APIs for core behavior.
 
 ## Contribution Rules
 
-- Do not claim Tracepack proves correctness, safety, security, or approval.
+- Do not claim TracePack proves correctness, safety, security, or approval.
 - Do not capture raw repository contents, full diffs, prompts, environment values, credentials, or
   browser sessions by default.
 - Add tests for new warning rules, redaction behavior, manifest fields, and report rendering.

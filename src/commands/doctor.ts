@@ -14,7 +14,7 @@ type ToolCheck = {
 export function registerDoctor(program: Command): void {
   program
     .command("doctor")
-    .description("Report local Tracepack readiness without reading secrets.")
+    .description("Report local TracePack readiness without reading secrets.")
     .action(async () => {
       const [git, npm, pnpm] = await Promise.all([
         checkTool("git", ["--version"]),
@@ -23,7 +23,7 @@ export function registerDoctor(program: Command): void {
       ]);
       const repo = await checkGitRepository();
 
-      console.log("Tracepack doctor");
+      console.log("TracePack doctor");
       console.log(`Node: ${process.version}`);
       console.log(`Platform: ${process.platform} ${process.arch}`);
       console.log(`Current folder: ${process.cwd()}`);

@@ -110,8 +110,8 @@ async function collectChangedFiles(
       index += 1;
     }
 
-    const internalTracepackPath = relPath === ".tracepack" || relPath.startsWith(".tracepack/");
-    const sensitive = isSensitivePath(relPath) || internalTracepackPath;
+    const internalTracePackPath = relPath === ".tracepack" || relPath.startsWith(".tracepack/");
+    const sensitive = isSensitivePath(relPath) || internalTracePackPath;
     const absolutePath = path.join(root, relPath);
     const base: ChangedFile = {
       path: relPath,
@@ -121,9 +121,9 @@ async function collectChangedFiles(
       deletions: numstat.get(relPath)?.deletions,
       excluded: sensitive,
       exclusionReason: sensitive
-        ? internalTracepackPath
-          ? "Path is Tracepack internal bundle/session state."
-          : "Path matched Tracepack sensitive path denylist."
+        ? internalTracePackPath
+          ? "Path is TracePack internal bundle/session state."
+          : "Path matched TracePack sensitive path denylist."
         : undefined,
       looksLikeTest:
         looksLikeTestPath(relPath) || (previousPath ? looksLikeTestPath(previousPath) : false)

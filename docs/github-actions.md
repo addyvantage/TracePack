@@ -1,9 +1,9 @@
 # GitHub Actions
 
-Tracepack v0.1 provides a documented workflow example, not a published Marketplace Action and not a
+TracePack v0.1 provides a documented workflow example, not a published Marketplace Action and not a
 GitHub App.
 
-The example in `examples/github-actions/tracepack.yml`:
+The example in `examples/github-actions/TracePack.yml`:
 
 - uses least privilege with `contents: read`;
 - installs project dependencies with `npm ci`;
@@ -18,9 +18,9 @@ The example in `examples/github-actions/tracepack.yml`:
 Adapt the validation command to your project:
 
 ```yaml
-- name: Tracepack run validation
+- name: TracePack run validation
   run: node dist/cli.js run -- npm test
 ```
 
-Artifacts are stored by GitHub Actions. Tracepack itself does not upload to external storage outside
+Artifacts are stored by GitHub Actions. TracePack itself does not upload to external storage outside
 the workflow steps you configure.

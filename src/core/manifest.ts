@@ -121,7 +121,7 @@ export const WarningSchema = z.object({
 
 export const ManifestSchema = z.object({
   schemaVersion: z.literal(MANIFEST_SCHEMA_VERSION),
-  tracepackVersion: z.string(),
+  TracePackVersion: z.string(),
   runId: z.string(),
   label: z.string().optional(),
   startedAt: z.string(),
@@ -169,10 +169,10 @@ export type ChangedFile = z.infer<typeof ChangedFileSchema>;
 export type GitEvidence = z.infer<typeof GitEvidenceSchema>;
 export type CommandEvidence = z.infer<typeof CommandEvidenceSchema>;
 export type WarningEntry = z.infer<typeof WarningSchema>;
-export type TracepackManifest = z.infer<typeof ManifestSchema>;
+export type TracePackManifest = z.infer<typeof ManifestSchema>;
 export type RedactionReport = z.infer<typeof RedactionReportSchema>;
 
-export function validateManifest(value: unknown): TracepackManifest {
+export function validateManifest(value: unknown): TracePackManifest {
   return ManifestSchema.parse(value);
 }
 

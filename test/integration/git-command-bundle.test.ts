@@ -74,7 +74,7 @@ describe("integration", () => {
 });
 
 async function createFixtureRepo(): Promise<string> {
-  const repo = await mkdtemp(path.join(os.tmpdir(), "tracepack-test-"));
+  const repo = await mkdtemp(path.join(os.tmpdir(), "TracePack-test-"));
   tempRoots.push(repo);
   await mkdir(path.join(repo, "src"), { recursive: true });
   await mkdir(path.join(repo, "test"), { recursive: true });
@@ -83,7 +83,7 @@ async function createFixtureRepo(): Promise<string> {
     path.join(repo, "package.json"),
     JSON.stringify(
       {
-        name: "tracepack-fixture",
+        name: "TracePack-fixture",
         private: true,
         type: "module",
         scripts: {
@@ -106,8 +106,8 @@ async function createFixtureRepo(): Promise<string> {
     "utf8"
   );
   await exec("git", ["init"], repo);
-  await exec("git", ["config", "user.email", "tracepack-test@example.invalid"], repo);
-  await exec("git", ["config", "user.name", "Tracepack Test"], repo);
+  await exec("git", ["config", "user.email", "TracePack-test@example.invalid"], repo);
+  await exec("git", ["config", "user.name", "TracePack Test"], repo);
   await exec("git", ["add", "."], repo);
   await exec("git", ["commit", "-m", "Initial fixture"], repo);
   return repo;

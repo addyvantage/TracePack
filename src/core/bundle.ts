@@ -4,13 +4,13 @@ import {
   validateManifest,
   validateRedactionReport,
   type RedactionReport,
-  type TracepackManifest
+  type TracePackManifest
 } from "./manifest.js";
 import { renderHtmlReport } from "../report/renderHtml.js";
 
 export async function writeBundle(
   bundleDir: string,
-  manifest: TracepackManifest,
+  manifest: TracePackManifest,
   redactionReport: RedactionReport
 ): Promise<void> {
   await mkdir(bundleDir, { recursive: true });

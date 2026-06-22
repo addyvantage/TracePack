@@ -40,7 +40,7 @@ function validationAfterFinalChangeWarnings(
       title: "No successful validation command was observed after the final observed code change.",
       trigger:
         latestSuccessfulValidation === undefined
-          ? "No command classified as validation completed successfully in this Tracepack run."
+          ? "No command classified as validation completed successfully in this TracePack run."
           : "The latest successful validation command ended before the newest observed changed-file timestamp.",
       evidenceRefs: [
         "git.after.changedFiles",
@@ -49,7 +49,7 @@ function validationAfterFinalChangeWarnings(
       humanReview:
         "Review whether the final code state was validated by another mechanism before trusting the change.",
       limitation:
-        "Filesystem timestamps can be imperfect. Tracepack observes local evidence only and does not prove the code was untested elsewhere.",
+        "Filesystem timestamps can be imperfect. TracePack observes local evidence only and does not prove the code was untested elsewhere.",
       label: "needs_human_review"
     }
   ];
@@ -116,7 +116,7 @@ function suspiciousTestEditWarnings(
       humanReview:
         "Review whether the change intentionally removed or moved test coverage. This warning does not judge test quality.",
       limitation:
-        "Tracepack reports deterministic file-status triggers only; it is not an LLM test-quality reviewer.",
+        "TracePack reports deterministic file-status triggers only; it is not an LLM test-quality reviewer.",
       label: "needs_human_review"
     });
   }

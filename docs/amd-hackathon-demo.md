@@ -1,6 +1,6 @@
 # AMD Hackathon Demo
 
-Tracepack does not require AMD, Fireworks, OpenAI, Anthropic, or any external model API. The demo is
+TracePack does not require AMD, Fireworks, OpenAI, Anthropic, or any external model API. The demo is
 deterministic and local.
 
 Run:

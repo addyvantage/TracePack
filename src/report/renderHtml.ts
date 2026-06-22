@@ -1,8 +1,8 @@
-import type { RedactionReport, TracepackManifest } from "../core/manifest.js";
+import type { RedactionReport, TracePackManifest } from "../core/manifest.js";
 import { reportStyles } from "./styles.js";
 
 export function renderHtmlReport(
-  manifest: TracepackManifest,
+  manifest: TracePackManifest,
   redactionReport: RedactionReport
 ): string {
   const warnings = manifest.warnings;
@@ -16,15 +16,15 @@ export function renderHtmlReport(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tracepack Report ${escapeHtml(manifest.runId)}</title>
+  <title>TracePack Report ${escapeHtml(manifest.runId)}</title>
   <style>${reportStyles}</style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Tracepack Evidence Report</h1>
-    <p class="muted">Run <code>${escapeHtml(manifest.runId)}</code>${manifest.label ? ` · ${escapeHtml(manifest.label)}` : ""}</p>
-    <p>${statusLabel(warnings.length === 0 ? "observed" : "needs_human_review")} Tracepack reports observed local evidence. It does not prove correctness, security, or approval.</p>
+    <h1>TracePack Evidence Report</h1>
+    <p class="muted">Run <code>${escapeHtml(manifest.runId)}</code>${manifest.label ? ` Â· ${escapeHtml(manifest.label)}` : ""}</p>
+    <p>${statusLabel(warnings.length === 0 ? "observed" : "needs_human_review")} TracePack reports observed local evidence. It does not prove correctness, security, or approval.</p>
   </header>
 
   <section>
@@ -89,7 +89,7 @@ export function renderHtmlReport(
 
   <section>
     <h2>Reproduction Instructions</h2>
-    <p class="muted">These commands were observed by Tracepack. Re-run only commands you approve in your own environment.</p>
+    <p class="muted">These commands were observed by TracePack. Re-run only commands you approve in your own environment.</p>
     <pre>${escapeHtml(manifest.reproduction.commands.join("\n") || "No commands were captured.")}</pre>
     <ul>${manifest.reproduction.notes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}</ul>
   </section>
@@ -118,7 +118,7 @@ function metric(label: string, value: string): string {
   return `<div class="panel"><strong>${escapeHtml(label)}</strong><p>${escapeHtml(value)}</p></div>`;
 }
 
-function changedFilesTable(manifest: TracepackManifest): string {
+function changedFilesTable(manifest: TracePackManifest): string {
   if (manifest.git.after.changedFiles.length === 0) {
     return `<p class="muted">No changed files were observed by Git.</p>`;
   }
@@ -141,7 +141,7 @@ function changedFilesTable(manifest: TracepackManifest): string {
 </table>`;
 }
 
-function commandsTable(commands: TracepackManifest["commands"]): string {
+function commandsTable(commands: TracePackManifest["commands"]): string {
   if (commands.length === 0) {
     return `<p class="muted">No commands were captured.</p>`;
   }
@@ -164,7 +164,7 @@ function commandsTable(commands: TracepackManifest["commands"]): string {
 </table>`;
 }
 
-function warningPanel(warning: TracepackManifest["warnings"][number]): string {
+function warningPanel(warning: TracePackManifest["warnings"][number]): string {
   return `<div class="panel">
     <p>${statusLabel(warning.label)} <strong>${escapeHtml(warning.title)}</strong></p>
     <p><strong>Trigger:</strong> ${escapeHtml(warning.trigger)}</p>

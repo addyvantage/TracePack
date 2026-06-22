@@ -17,7 +17,7 @@ await mkdir(workDir, { recursive: true });
 const missing = await runMissingValidationDemo();
 const corrected = await runCorrectedDemo();
 
-console.log("Tracepack demo completed.");
+console.log("TracePack demo completed.");
 console.log(`Missing-validation report: ${path.join(missing.bundleDir, "report.html")}`);
 console.log(`Corrected report: ${path.join(corrected.bundleDir, "report.html")}`);
 
@@ -72,7 +72,7 @@ async function setupDemoRepo(name) {
     path.join(repo, "package.json"),
     JSON.stringify(
       {
-        name: `tracepack-demo-${name}`,
+        name: `TracePack-demo-${name}`,
         private: true,
         type: "module",
         scripts: {
@@ -96,8 +96,8 @@ async function setupDemoRepo(name) {
   );
 
   await exec("git", ["init"], repo);
-  await exec("git", ["config", "user.email", "tracepack-demo@example.invalid"], repo);
-  await exec("git", ["config", "user.name", "Tracepack Demo"], repo);
+  await exec("git", ["config", "user.email", "TracePack-demo@example.invalid"], repo);
+  await exec("git", ["config", "user.name", "TracePack Demo"], repo);
   await exec("git", ["add", "."], repo);
   await exec("git", ["commit", "-m", "Initial demo project"], repo);
   return repo;

@@ -4,7 +4,7 @@ The v0.1 manifest schema version is `tracepack.manifest.v0.1`.
 
 Each `manifest.json` includes:
 
-- Tracepack run ID, version, label, and timestamps;
+- TracePack run ID, version, label, and timestamps;
 - safe OS metadata and a safe current-folder representation;
 - Git evidence before and after the run;
 - changed-file paths, statuses, counts, diff statistics, safe metadata, and exclusions;

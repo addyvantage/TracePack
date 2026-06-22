@@ -1,4 +1,4 @@
-name: Tracepack Evidence
+name: TracePack Evidence
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  tracepack:
+  TracePack:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,33 +23,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Tracepack CLI
+      - name: Build TracePack CLI
         run: npm run build
 
-      - name: Tracepack start
+      - name: TracePack start
         run: node dist/cli.js start --label "github-actions-${{ github.run_id }}"
 
-      - name: Tracepack run validation
+      - name: TracePack run validation
         run: node dist/cli.js run -- npm test
 
-      - name: Tracepack finish
+      - name: TracePack finish
         if: always()
         run: node dist/cli.js finish
 
-      - name: Locate latest Tracepack bundle
+      - name: Locate latest TracePack bundle
         if: always()
         id: bundle
         shell: bash
         run: |
           bundle="$(ls -td .tracepack/* | head -1)"
           echo "path=$bundle" >> "$GITHUB_OUTPUT"
-          echo "Tracepack bundle: $bundle" >> "$GITHUB_STEP_SUMMARY"
-          echo "Tracepack reports observed evidence only. It does not approve this PR." >> "$GITHUB_STEP_SUMMARY"
+          echo "TracePack bundle: $bundle" >> "$GITHUB_STEP_SUMMARY"
+          echo "TracePack reports observed evidence only. It does not approve this PR." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Tracepack bundle
+      - name: Upload TracePack bundle
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tracepack-evidence-${{ github.run_id }}
+          name: TracePack-evidence-${{ github.run_id }}
           path: ${{ steps.bundle.outputs.path }}
           if-no-files-found: error

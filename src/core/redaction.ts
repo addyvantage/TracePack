@@ -109,7 +109,7 @@ export function createRedactionReport(params: {
 }): RedactionReport {
   const notes = [
     "Redaction is best effort and is not a guarantee that every sensitive value was removed.",
-    "Tracepack does not read .env contents, SSH keys, browser cookie stores, or credential files by default.",
+    "TracePack does not read .env contents, SSH keys, browser cookie stores, or credential files by default.",
     ...(params.notes ?? [])
   ];
 

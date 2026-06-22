@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderHtmlReport } from "../../src/report/renderHtml.js";
 import { createRedactionReport } from "../../src/core/redaction.js";
-import { validateManifest, type TracepackManifest } from "../../src/core/manifest.js";
+import { validateManifest, type TracePackManifest } from "../../src/core/manifest.js";
 
 describe("report rendering", () => {
   it("renders required sections from a valid manifest", () => {
@@ -18,10 +18,10 @@ describe("report rendering", () => {
   });
 });
 
-function sampleManifest(): TracepackManifest {
+function sampleManifest(): TracePackManifest {
   return {
     schemaVersion: "tracepack.manifest.v0.1",
-    tracepackVersion: "0.1.0",
+    TracePackVersion: "0.1.0",
     runId: "demo",
     startedAt: "2026-01-01T00:00:00.000Z",
     finishedAt: "2026-01-01T00:00:01.000Z",
@@ -49,11 +49,11 @@ function sampleManifest(): TracepackManifest {
       commands: [],
       notes: []
     },
-    limitations: ["Tracepack observes local evidence only."]
+    limitations: ["TracePack observes local evidence only."]
   };
 }
 
-function git(): TracepackManifest["git"]["after"] {
+function git(): TracePackManifest["git"]["after"] {
   return {
     available: true,
     isRepository: true,

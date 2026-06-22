@@ -10,12 +10,12 @@ export function registerRun(program: Command): void {
     .argument("[command...]", "command argv after --")
     .action(async (command: string[]) => {
       if (!command || command.length === 0) {
-        throw new Error("Usage: tracepack run -- <command...>");
+        throw new Error("Usage: TracePack run -- <command...>");
       }
 
       const result = await runCommandInSession(process.cwd(), command);
       console.log("");
-      console.log(`Tracepack captured command ${result.command.id} (${result.command.evidence}).`);
+      console.log(`TracePack captured command ${result.command.id} (${result.command.evidence}).`);
       if (result.finishedBundleDir) {
         console.log(`Bundle written: ${result.finishedBundleDir}`);
         console.log(`Report: ${result.finishedBundleDir}\\report.html`);

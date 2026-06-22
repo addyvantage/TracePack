@@ -1,10 +1,10 @@
-# Tracepack
+# TracePack
 
-Tracepack captures deterministic local evidence around an AI-assisted code change and renders a
+TracePack captures deterministic local evidence around an AI-assisted code change and renders a
 redacted reproducible review bundle showing what changed, what validation ran, what was not
 observed, and what needs human review.
 
-Tracepack does not prove code is correct. It does not prove security. It does not approve PRs. It
+TracePack does not prove code is correct. It does not prove security. It does not approve PRs. It
 observes local evidence only.
 
 ## 30-Second Quickstart
@@ -26,7 +26,7 @@ For a one-command bundle:
 node dist/cli.js run -- npm test
 ```
 
-## What Tracepack Captures
+## What TracePack Captures
 
 - Git repository detection, branch, HEAD before and after, dirty-state status, changed-file
   metadata, changed-file counts, and diff statistics.
@@ -37,24 +37,24 @@ node dist/cli.js run -- npm test
 - A local `.tracepack/<run-id>/` bundle with `manifest.json`, `redaction-report.json`, and
   `report.html`.
 
-## What Tracepack Does Not Capture
+## What TracePack Does Not Capture
 
-Tracepack does not capture entire repository contents, full raw diffs by default, prompt
+TracePack does not capture entire repository contents, full raw diffs by default, prompt
 transcripts, environment variable values, `.env` contents, SSH keys, API keys, browser cookies,
 credential stores, or unrelated workspace contents. Redaction is best effort and not a guarantee.
 
 ## What It Proves
 
-Tracepack can support narrow observed claims, such as:
+TracePack can support narrow observed claims, such as:
 
-- a specific command was run through Tracepack;
+- a specific command was run through TracePack;
 - that command exited with a specific code at a specific time;
 - Git observed a specific final changed-file set;
 - no successful validation command was observed after the final observed changed-file timestamp.
 
 ## What It Does Not Prove
 
-Tracepack does not prove correctness, security, merge readiness, policy compliance, developer
+TracePack does not prove correctness, security, merge readiness, policy compliance, developer
 intent, or that validation did not happen elsewhere.
 
 ## CLI

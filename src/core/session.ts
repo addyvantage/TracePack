@@ -11,7 +11,7 @@ import {
   type CommandEvidence,
   type GitEvidence,
   type RedactionReport,
-  type TracepackManifest
+  type TracePackManifest
 } from "./manifest.js";
 import { createRedactionReport } from "./redaction.js";
 import {
@@ -39,17 +39,17 @@ type ActiveSessionPointer = {
 export async function startSession(cwd: string, label?: string): Promise<SessionState> {
   const existing = await loadActiveSession(cwd);
   if (existing) {
-    throw new Error(`An active Tracepack session already exists: ${existing.runId}`);
+    throw new Error(`An active TracePack session already exists: ${existing.runId}`);
   }
 
   const initialGit = await captureGitEvidence(cwd);
   if (!initialGit.available) {
     throw new Error(
-      "Git is required for Tracepack sessions, but the git binary was not available."
+      "Git is required for TracePack sessions, but the git binary was not available."
     );
   }
   if (!initialGit.isRepository) {
-    throw new Error("Tracepack sessions must start inside a Git repository.");
+    throw new Error("TracePack sessions must start inside a Git repository.");
   }
 
   const runId = createRunId();
@@ -116,13 +116,13 @@ export async function finishSession(
   label?: string
 ): Promise<{
   session: SessionState;
-  manifest: TracepackManifest;
+  manifest: TracePackManifest;
   redactionReport: RedactionReport;
   bundleDir: string;
 }> {
   const session = await loadActiveSession(cwd);
   if (!session) {
-    throw new Error("No active Tracepack session was found.");
+    throw new Error("No active TracePack session was found.");
   }
 
   if (label) {
@@ -139,9 +139,9 @@ export async function finishSession(
     outputs,
     excludedEvidence
   });
-  const manifest: TracepackManifest = {
+  const manifest: TracePackManifest = {
     schemaVersion: MANIFEST_SCHEMA_VERSION,
-    tracepackVersion: TRACEPACK_VERSION,
+    TracePackVersion: TRACEPACK_VERSION,
     runId: session.runId,
     label: session.label,
     startedAt: session.startedAt,
@@ -165,16 +165,16 @@ export async function finishSession(
       commands: session.commands.map((command) => quoteCommand(command.argv)),
       notes: [
         "Run these commands only after reviewing them yourself.",
-        "Tracepack records observed local evidence and does not replace CI or human review.",
+        "TracePack records observed local evidence and does not replace CI or human review.",
         "The bundle intentionally omits raw repository contents and full raw diffs by default."
       ]
     },
     limitations: [
-      "Tracepack observes local Git state and commands executed through the Tracepack CLI only.",
-      "Tracepack does not prove code correctness, security, merge readiness, or policy compliance.",
+      "TracePack observes local Git state and commands executed through the TracePack CLI only.",
+      "TracePack does not prove code correctness, security, merge readiness, or policy compliance.",
       "Filesystem timestamps, Git status, and command classification are deterministic but limited signals.",
       "Redaction is best effort and cannot guarantee every sensitive value is removed.",
-      "No source code, prompts, transcripts, environment variable values, credentials, or browser sessions are uploaded by Tracepack."
+      "No source code, prompts, transcripts, environment variable values, credentials, or browser sessions are uploaded by TracePack."
     ]
   };
 
@@ -203,6 +203,6 @@ export function localBundleDir(cwd: string, runId: string): string {
   return runDirectory(cwd, runId);
 }
 
-export function localTracepackDir(cwd: string): string {
+export function localTracePackDir(cwd: string): string {
   return tracepackDir(cwd);
 }

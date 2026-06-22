@@ -17,4 +17,4 @@ Use one-command mode when you only need to wrap a single validation command:
 node dist/cli.js run -- npm test
 ```
 
-Tracepack records observed evidence. It does not approve the change or prove correctness.
+TracePack records observed evidence. It does not approve the change or prove correctness.

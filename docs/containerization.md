@@ -1,6 +1,6 @@
 # Containerization Assessment
 
-Tracepack v0.1 does not include a Dockerfile.
+TracePack v0.1 does not include a Dockerfile.
 
 Reasoning:
 

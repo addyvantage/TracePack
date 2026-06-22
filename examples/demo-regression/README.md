@@ -1,4 +1,4 @@
-# Tracepack Regression Demo
+# TracePack Regression Demo
 
 Run from the repository root:
 

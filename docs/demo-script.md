@@ -1,6 +1,6 @@
 # Demo Script
 
-1. Build Tracepack:
+1. Build TracePack:
 
    ```bash
    npm run build
@@ -20,5 +20,5 @@
      observed code change;
    - corrected report: validation was observed after the final code change.
 
-5. State the limitation plainly: Tracepack reports observed local evidence. It does not prove the
+5. State the limitation plainly: TracePack reports observed local evidence. It does not prove the
    code is correct or safe.
