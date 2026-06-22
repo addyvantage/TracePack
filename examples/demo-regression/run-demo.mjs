@@ -17,11 +17,13 @@ await mkdir(workDir, { recursive: true });
 const missing = await runMissingValidationDemo();
 const corrected = await runCorrectedDemo();
 const partial = await runPartialObservationDemo();
+const ignoredInput = await runIgnoredInputDemo();
 
 console.log("TracePack demo completed.");
 printDemoResult("Missing-validation", missing);
 printDemoResult("Corrected", corrected);
 printDemoResult("Partial-observation", partial);
+printDemoResult("Ignored-input", ignoredInput);
 
 async function runMissingValidationDemo() {
   const repo = await setupDemoRepo("missing-validation");
@@ -87,6 +89,32 @@ async function runPartialObservationDemo() {
   if (manifest.receipt?.observationConfidence !== "partial") {
     throw new Error(
       `Expected partial-observation demo confidence to be partial, got ${manifest.receipt?.observationConfidence}.`
+    );
+  }
+  return { repo, bundleDir, manifest };
+}
+
+async function runIgnoredInputDemo() {
+  const repo = await setupDemoRepo("ignored-input");
+  await mkdir(path.join(repo, "node_modules"), { recursive: true });
+  await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "ok\n", "utf8");
+  await writeFile(
+    path.join(repo, "test", "calc.test.mjs"),
+    `import { readFileSync } from "node:fs";\nimport { add } from "../src/calc.mjs";\n\nif (readFileSync("node_modules/runtime-config.txt", "utf8").trim() !== "ok") {\n  throw new Error("runtime config should be ok");\n}\n\nif (add(2, 3) !== 5) {\n  throw new Error("add should return the sum");\n}\n`,
+    "utf8"
+  );
+  await execNode(["start", "--label", "ignored-input-regression"], repo);
+  await execNode(["run", "--", npmCommand, "test"], repo);
+  await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "changed\n", "utf8");
+  const finishOutput = await execNode(["finish"], repo);
+  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout);
+  const manifest = await readManifest(bundleDir);
+  if (manifest.receipt?.verdict === "validated_final_state") {
+    throw new Error("Expected ignored-input demo not to report validated_final_state.");
+  }
+  if (manifest.receipt?.observationConfidence !== "partial") {
+    throw new Error(
+      `Expected ignored-input demo confidence to be partial, got ${manifest.receipt?.observationConfidence}.`
     );
   }
   return { repo, bundleDir, manifest };

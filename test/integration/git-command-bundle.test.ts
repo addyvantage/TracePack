@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
-import { captureGitEvidence } from "../../src/core/git.js";
+import { captureGitEvidence, captureIgnoredFilesObservation } from "../../src/core/git.js";
 import { runAndCaptureCommand } from "../../src/core/commands.js";
 import { finishSession, runCommandInSession, startSession } from "../../src/core/session.js";
 import { validateManifest } from "../../src/core/manifest.js";
@@ -45,6 +45,26 @@ describe("integration", () => {
     );
   });
 
+  it("hides sensitive ignored path labels while preserving ignored-path evidence", async () => {
+    const repo = await createFixtureRepo();
+    await writeFile(path.join(repo, ".gitignore"), ".tracepack/\nnode_modules/\n.env\n", "utf8");
+    await exec("git", ["add", ".gitignore"], repo);
+    await exec("git", ["commit", "-m", "Ignore env files"], repo);
+    await writeFile(path.join(repo, ".env"), "SECRET=do-not-read\n", "utf8");
+
+    const ignored = await captureIgnoredFilesObservation(repo);
+    expect(ignored.mode).toBe("partial");
+    expect(ignored.samples).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: undefined,
+          pathHash: expect.any(String),
+          reason: expect.stringContaining("sensitive path")
+        })
+      ])
+    );
+  });
+
   it("captures failed command evidence without throwing", async () => {
     const evidence = await runAndCaptureCommand(
       [process.execPath, "-e", "console.error('failed'); process.exit(7)"],
@@ -66,7 +86,7 @@ describe("integration", () => {
       )
     );
     expect(manifest.commands).toHaveLength(1);
-    expect(manifest.schemaVersion).toBe("tracepack.manifest.v0.3");
+    expect(manifest.schemaVersion).toBe("tracepack.manifest.v0.4");
   });
 
   it("reports validated_final_state when validation runs after the final change", async () => {
@@ -122,7 +142,7 @@ describe("integration", () => {
     );
   });
 
-  it("surfaces ignored-file blind spots when validation reads an ignored file", async () => {
+  it("does not fully validate when validation reads an ignored file that later changes", async () => {
     const repo = await createFixtureRepo();
     await mkdir(path.join(repo, "node_modules"), { recursive: true });
     await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "ok\n", "utf8");
@@ -136,12 +156,52 @@ describe("integration", () => {
     await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "changed\n", "utf8");
     const result = await finishSession(repo);
 
-    expect(result.manifest.receipt.verdict).toBe("validated_final_state");
-    expect(result.manifest.receipt.observationConfidence).toBe("complete");
+    expect(result.manifest.receipt.verdict).toBe("inconclusive");
+    expect(result.manifest.receipt.observationConfidence).toBe("partial");
+    expect(result.manifest.receipt.coveringCommandIds).toEqual(["cmd-001"]);
+    expect(result.manifest.receipt.limitedCommandIds).toEqual(["cmd-001"]);
     expect(result.manifest.receipt.confidenceReasons).toEqual(
-      expect.arrayContaining([expect.stringContaining("Git ignored paths are outside")])
+      expect.arrayContaining([expect.stringContaining("ignored path")])
     );
-    expect(result.manifest.receipt.final.ignoredFiles?.mode).toBe("not_observed");
+    expect(result.manifest.receipt.final.ignoredFiles?.mode).toBe("partial");
+    expect(result.manifest.receipt.final.ignoredFiles?.samples).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "node_modules/" })])
+    );
+  });
+
+  it("does not fully validate when ignored validation input is removed before finish", async () => {
+    const repo = await createFixtureRepo();
+    await mkdir(path.join(repo, "node_modules"), { recursive: true });
+    await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "ok\n", "utf8");
+    await writeFile(
+      path.join(repo, "test", "calc.test.mjs"),
+      "import { readFileSync } from 'node:fs';\nimport { add } from '../src/calc.mjs';\nif (readFileSync('node_modules/runtime-config.txt', 'utf8').trim() !== 'ok') throw new Error('bad config');\nif (add(2, 3) !== 5) throw new Error('bad add');\n",
+      "utf8"
+    );
+    await startSession(repo, "ignored-prestate-only");
+    await runCommandInSession(repo, [npmCommand, "test"]);
+    await rm(path.join(repo, "node_modules"), { recursive: true, force: true });
+    const result = await finishSession(repo);
+
+    expect(result.manifest.receipt.final.ignoredFiles?.mode).toBe("not_present");
+    expect(result.manifest.receipt.verdict).toBe("inconclusive");
+    expect(result.manifest.receipt.observationConfidence).toBe("partial");
+    expect(result.manifest.receipt.coveringCommandIds).toEqual(["cmd-001"]);
+    expect(result.manifest.receipt.limitedCommandIds).toEqual(["cmd-001"]);
+    expect(result.manifest.receipt.evidenceRefs).toEqual(
+      expect.arrayContaining(["commands:cmd-001.gitBefore.ignoredFiles"])
+    );
+    expect(result.manifest.receipt.observationLimits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "command_prestate_ignored_paths_unobserved",
+          evidenceRef: "commands:cmd-001.gitBefore.ignoredFiles"
+        })
+      ])
+    );
+
+    const html = await readFile(path.join(result.bundleDir, "report.html"), "utf8");
+    expect(html).toContain("commands:cmd-001.gitBefore.ignoredFiles");
   });
 
   it("reports validation_stale when validation runs before the final change", async () => {
@@ -267,6 +327,33 @@ describe("integration", () => {
     expect(html).toContain("Final-State Validation Receipt");
     expect(html).toContain("Legacy v0.2 receipt did not capture observation-confidence details.");
   });
+
+  it("regenerates reports for v0.3 manifests without upgrading their stored certainty", async () => {
+    const bundleDir = await mkdtemp(path.join(os.tmpdir(), "TracePack-v03-"));
+    tempRoots.push(bundleDir);
+    const manifest = v03Manifest();
+    await writeFile(
+      path.join(bundleDir, "manifest.json"),
+      JSON.stringify(manifest, null, 2),
+      "utf8"
+    );
+    await writeFile(
+      path.join(bundleDir, "redaction-report.json"),
+      JSON.stringify(
+        createRedactionReport({ runId: manifest.runId, outputs: [], excludedEvidence: [] }),
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const reportPath = await regenerateReport(bundleDir);
+    const html = await readFile(reportPath, "utf8");
+
+    expect(html).toContain("Final-State Validation Receipt");
+    expect(html).toContain("validated final state");
+    expect(html).toContain("Ignored-Path Observation");
+  });
 });
 
 async function createFixtureRepo(): Promise<string> {
@@ -379,6 +466,23 @@ function v02Manifest() {
       evidenceRefs: ["receipt.final.fingerprint"],
       explanation: "Legacy v0.2 receipt.",
       limitations: []
+    }
+  };
+}
+
+function v03Manifest() {
+  const manifest = v02Manifest();
+  return {
+    ...manifest,
+    schemaVersion: "tracepack.manifest.v0.3",
+    receipt: {
+      ...manifest.receipt,
+      schemaVersion: "tracepack.receipt.v0.2",
+      observationConfidence: "complete",
+      confidenceReasons: [
+        "Git ignored paths are outside TracePack's default repository-state evidence and are not listed or hashed."
+      ],
+      limitedCommandIds: []
     }
   };
 }

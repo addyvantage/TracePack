@@ -11,7 +11,7 @@ import {
   type GitEvidence,
   type GitStateSnapshot,
   type RedactionReport,
-  type TracePackManifestV03
+  type TracePackManifestV04
 } from "./manifest.js";
 import { createFinalStateReceipt } from "./receipt.js";
 import { createRedactionReport } from "./redaction.js";
@@ -124,7 +124,7 @@ export async function finishSession(
   label?: string
 ): Promise<{
   session: SessionState;
-  manifest: TracePackManifestV03;
+  manifest: TracePackManifestV04;
   redactionReport: RedactionReport;
   bundleDir: string;
 }> {
@@ -161,7 +161,7 @@ export async function finishSession(
     outputs,
     excludedEvidence
   });
-  const manifest: TracePackManifestV03 = {
+  const manifest: TracePackManifestV04 = {
     schemaVersion: MANIFEST_SCHEMA_VERSION,
     TracePackVersion: TRACEPACK_VERSION,
     runId: session.runId,

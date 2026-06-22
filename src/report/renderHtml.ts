@@ -1,4 +1,9 @@
-import type { GitStateSnapshot, RedactionReport, TracePackManifest } from "../core/manifest.js";
+import type {
+  FinalStateReceipt,
+  GitStateSnapshot,
+  RedactionReport,
+  TracePackManifest
+} from "../core/manifest.js";
 import { reportStyles } from "./styles.js";
 
 export function renderHtmlReport(
@@ -183,6 +188,9 @@ function receiptSection(manifest: TracePackManifest): string {
   const finalHash = receipt.final.fingerprint?.short ?? "Not available";
   const confidence =
     receipt.observationConfidence ?? receipt.final.contentObservation ?? "unavailable";
+  const changedContentObservation =
+    receipt.changedContentObservation ?? receipt.final.contentObservation ?? "unavailable";
+  const ignoredObservation = receipt.final.ignoredFiles?.mode ?? "unavailable";
   const confidenceReasons =
     receipt.confidenceReasons ??
     (manifest.schemaVersion === "tracepack.manifest.v0.2"
@@ -213,13 +221,16 @@ function receiptSection(manifest: TracePackManifest): string {
     <h2>Final-State Validation Receipt</h2>
     <div class="panel">
       <p>${statusLabel(receipt.verdict)} <strong>${escapeHtml(receipt.explanation)}</strong></p>
-      <p><strong>Receipt confidence:</strong> ${statusLabel(confidence)}</p>
+      <p><strong>Overall receipt confidence:</strong> ${statusLabel(confidence)}</p>
       <div class="grid">
         ${metric("Final State Fingerprint", finalHash)}
         ${metric("Matched Fingerprint Command(s)", covering)}
         ${metric("Baseline Fingerprint", receipt.baseline.fingerprint?.short ?? "Not available")}
+        ${metric("Changed-File Content Observation", changedContentObservation)}
+        ${metric("Ignored-Path Observation", ignoredObservation)}
       </div>
       ${confidenceReasonsList(confidenceReasons)}
+      ${observationLimitsList(receipt.observationLimits ?? [])}
       ${limited}
       ${stale}
       ${failed}
@@ -235,6 +246,20 @@ function confidenceReasonsList(reasons: string[]): string {
   }
   return `<p><strong>Confidence notes:</strong></p><ul>${reasons
     .map((reason) => `<li>${escapeHtml(reason)}</li>`)
+    .join("")}</ul>`;
+}
+
+function observationLimitsList(
+  limits: NonNullable<FinalStateReceipt["observationLimits"]>
+): string {
+  if (limits.length === 0) {
+    return "";
+  }
+  return `<p><strong>Observation limit evidence:</strong></p><ul>${limits
+    .map((limit) => {
+      const pathText = limit.path ? `, path <code>${escapeHtml(limit.path)}</code>` : "";
+      return `<li><code>${escapeHtml(limit.evidenceRef)}</code>${pathText}: ${escapeHtml(limit.reason)}</li>`;
+    })
     .join("")}</ul>`;
 }
 
@@ -267,8 +292,24 @@ function observationDetails(snapshot: GitStateSnapshot): string {
             )
             .join("")}</ul>`
     }
-    ${ignored ? `<p class="muted">${escapeHtml(ignored.reason)}</p>` : ""}
+    ${
+      ignored && ignored.mode !== "not_present"
+        ? `<p class="muted">${escapeHtml(ignored.reason)}</p>${ignoredSamples(ignored)}`
+        : ""
+    }
   </div>`;
+}
+
+function ignoredSamples(ignored: NonNullable<GitStateSnapshot["ignoredFiles"]>): string {
+  if (!ignored.samples || ignored.samples.length === 0) {
+    return "";
+  }
+  return `<p>Ignored path sample(s), content not read:</p><ul>${ignored.samples
+    .map(
+      (sample) =>
+        `<li>${sample.path ? `<code>${escapeHtml(sample.path)}</code>` : "path hidden"} (${escapeHtml(sample.kind)}, hash <code>${escapeHtml(sample.pathHash)}</code>): ${escapeHtml(sample.reason)}</li>`
+    )
+    .join("")}</ul>`;
 }
 
 function warningPanel(warning: TracePackManifest["warnings"][number]): string {
@@ -287,14 +328,20 @@ function statusLabel(value: string): string {
       : value.includes("stale") ||
           value === "partial" ||
           value === "unavailable" ||
+          value === "not_observed" ||
+          value === "no_validation_observed" ||
+          value === "possible_validation_observed" ||
           value.includes("human") ||
           value.includes("redacted") ||
           value.includes("not_observed") ||
           value === "inconclusive"
         ? "warn"
         : value === "validated_final_state" ||
+            value === "successful_validation" ||
             value === "complete" ||
-            value.includes("validation") ||
+            value === "not_present" ||
+            value === "metadata_observed" ||
+            value === "content_observed" ||
             value === "observed"
           ? "good"
           : "neutral";

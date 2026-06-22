@@ -61,6 +61,68 @@ describe("receipt verdicts", () => {
     );
   });
 
+  it("does not fully validate a matching fingerprint when ignored-path observation is partial", () => {
+    const final = ignoredPartialSnapshot("final");
+    const receipt = createFinalStateReceipt({
+      baseline: snapshot("base"),
+      final,
+      commands: [command("cmd-001", 0, "validation", final)]
+    });
+
+    expect(receipt.verdict).toBe("inconclusive");
+    expect(receipt.observationConfidence).toBe("partial");
+    expect(receipt.changedContentObservation).toBe("complete");
+    expect(receipt.limitedCommandIds).toEqual(["cmd-001"]);
+    expect(receipt.observationLimits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "ignored_paths_unobserved",
+          evidenceRef: "receipt.final.ignoredFiles"
+        })
+      ])
+    );
+  });
+
+  it("does not fully validate when the matching command pre-state observation is partial", () => {
+    const final = snapshot("final");
+    const validationSubject = ignoredPartialSnapshot("final");
+    const receipt = createFinalStateReceipt({
+      baseline: snapshot("base"),
+      final,
+      commands: [command("cmd-001", 0, "validation", validationSubject)]
+    });
+
+    expect(receipt.verdict).toBe("inconclusive");
+    expect(receipt.observationConfidence).toBe("partial");
+    expect(receipt.changedContentObservation).toBe("complete");
+    expect(receipt.coveringCommandIds).toEqual(["cmd-001"]);
+    expect(receipt.limitedCommandIds).toEqual(["cmd-001"]);
+    expect(receipt.confidenceReasons).toEqual(
+      expect.arrayContaining([expect.stringContaining("cmd-001 pre-state")])
+    );
+    expect(receipt.observationLimits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "command_prestate_ignored_paths_unobserved",
+          evidenceRef: "commands:cmd-001.gitBefore.ignoredFiles"
+        })
+      ])
+    );
+  });
+
+  it("uses observation confidence as the strong-verdict gate", () => {
+    expect(
+      receiptVerdict({
+        validationCommandCount: 1,
+        hasFinalFingerprint: true,
+        observationConfidence: "partial",
+        coveringCommandIds: ["cmd-001"],
+        failedCommandIds: [],
+        staleCommandIds: []
+      })
+    ).toBe("inconclusive");
+  });
+
   it("marks missing final fingerprints as inconclusive", () => {
     expect(
       receiptVerdict({
@@ -96,6 +158,24 @@ function partialSnapshot(label: string): GitStateSnapshot {
     },
     `2026-01-01T00:00:00.000Z`
   );
+}
+
+function ignoredPartialSnapshot(label: string): GitStateSnapshot {
+  return createGitStateSnapshot(git(label), `2026-01-01T00:00:00.000Z`, {
+    mode: "partial",
+    count: 1,
+    samples: [
+      {
+        path: "node_modules/",
+        pathHash: "ignoredhash",
+        kind: "directory",
+        reason:
+          "Ignored path was detected by Git status, but TracePack did not read or hash its contents."
+      }
+    ],
+    reason:
+      "One non-TracePack ignored path was observed. TracePack did not read or hash ignored contents."
+  });
 }
 
 function git(label: string): GitEvidence {

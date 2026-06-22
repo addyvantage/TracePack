@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { captureGitEvidence } from "./git.js";
+import { captureGitEvidence, captureIgnoredFilesObservation } from "./git.js";
 import type {
   ChangedFile,
   ChangedFileObservation,
@@ -64,29 +64,35 @@ type CanonicalStateInput = {
 };
 
 export async function captureGitStateSnapshot(cwd: string): Promise<GitStateSnapshot> {
-  return createGitStateSnapshot(await captureGitEvidence(cwd));
+  return createGitStateSnapshot(
+    await captureGitEvidence(cwd),
+    new Date().toISOString(),
+    await captureIgnoredFilesObservation(cwd)
+  );
 }
 
 export function createGitStateSnapshot(
   git: GitEvidence,
-  capturedAt = new Date().toISOString()
+  capturedAt = new Date().toISOString(),
+  ignoredFiles: NonNullable<GitStateSnapshot["ignoredFiles"]> = {
+    mode: "not_present",
+    reason: "Ignored-path observation was not supplied for this synthetic or legacy snapshot."
+  }
 ): GitStateSnapshot {
   const fingerprint = git.available && git.isRepository ? fingerprintGitState(git) : undefined;
   const observation = observeChangedContent(git);
+  const overallObservation = combineObservation(observation.contentObservation, ignoredFiles);
 
   return {
     capturedAt,
     git,
     fingerprint,
     contentObservation: observation.contentObservation,
+    overallObservation,
     observedChangedFiles: observation.observedChangedFiles,
     unobservedChangedFiles: observation.unobservedChangedFiles,
     excludedChangedFiles: observation.excludedChangedFiles,
-    ignoredFiles: {
-      mode: "not_observed",
-      reason:
-        "Git ignored paths are outside TracePack's default repository-state evidence and are not listed or hashed."
-    },
+    ignoredFiles,
     limitations: [
       "State fingerprints are deterministic metadata receipts, not source-code contents.",
       "Sensitive paths and TracePack internal paths remain excluded from file hashing and are reported as limited evidence.",
@@ -233,6 +239,25 @@ function observeChangedContent(git: GitEvidence): {
     unobservedChangedFiles,
     excludedChangedFiles
   };
+}
+
+function combineObservation(
+  contentObservation: ContentObservation,
+  ignoredFiles: NonNullable<GitStateSnapshot["ignoredFiles"]>
+): ContentObservation {
+  if (contentObservation === "unavailable" || ignoredFiles.mode === "unavailable") {
+    return "unavailable";
+  }
+
+  if (
+    contentObservation === "partial" ||
+    ignoredFiles.mode === "partial" ||
+    ignoredFiles.mode === "not_observed"
+  ) {
+    return "partial";
+  }
+
+  return "complete";
 }
 
 function observationForFile(file: ChangedFile, reason: string): ChangedFileObservation {

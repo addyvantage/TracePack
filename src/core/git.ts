@@ -1,16 +1,18 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { ChangedFile, GitEvidence } from "./manifest.js";
+import type { ChangedFile, GitEvidence, GitStateSnapshot } from "./manifest.js";
 import {
   ensurePathInside,
   fileMetadata,
   isSensitivePath,
   normalizeRelativePath,
-  safePathDescriptor
+  safePathDescriptor,
+  shortHash
 } from "./paths.js";
 
 const execFileAsync = promisify(execFile);
+const IGNORED_SAMPLE_LIMIT = 20;
 
 export async function captureGitEvidence(cwd: string): Promise<GitEvidence> {
   const available = await gitAvailable(cwd);
@@ -67,6 +69,52 @@ export function looksLikeTestPath(filePath: string): boolean {
     /\.(test|spec)\.[cm]?[jt]sx?$/.test(normalized) ||
     /\.snap$/.test(normalized)
   );
+}
+
+export async function captureIgnoredFilesObservation(
+  cwd: string
+): Promise<NonNullable<GitStateSnapshot["ignoredFiles"]>> {
+  const result = await runGit(cwd, ["status", "--porcelain=v1", "-z", "--ignored=matching"], true);
+  if (!result.ok) {
+    return {
+      mode: "unavailable",
+      reason: "Ignored-path observation was unavailable because git status --ignored failed."
+    };
+  }
+
+  const ignoredPaths = result.stdout
+    .split("\0")
+    .filter((entry) => entry.startsWith("!! "))
+    .map((entry) => normalizeRelativePath(entry.slice(3)))
+    .filter((entry) => entry && entry !== ".tracepack" && !entry.startsWith(".tracepack/"))
+    .sort((a, b) => a.localeCompare(b));
+
+  if (ignoredPaths.length === 0) {
+    return {
+      mode: "not_present",
+      reason: "No non-TracePack ignored paths were observed by Git status."
+    };
+  }
+
+  return {
+    mode: "partial",
+    count: ignoredPaths.length,
+    samples: ignoredPaths.slice(0, IGNORED_SAMPLE_LIMIT).map((ignoredPath) => {
+      const sensitive = isSensitivePath(ignoredPath);
+      return {
+        path: sensitive ? undefined : ignoredPath,
+        pathHash: shortHash(ignoredPath),
+        kind: ignoredPath.endsWith("/") ? "directory" : "unknown",
+        reason: sensitive
+          ? "Ignored path matched TracePack sensitive path rules; path label is hidden and content was not read."
+          : "Ignored path was detected by Git status, but TracePack did not read or hash its contents."
+      };
+    }),
+    reason:
+      ignoredPaths.length === 1
+        ? "One non-TracePack ignored path was observed. TracePack did not read or hash ignored contents."
+        : `${ignoredPaths.length} non-TracePack ignored paths were observed. TracePack did not read or hash ignored contents.`
+  };
 }
 
 async function gitAvailable(cwd: string): Promise<boolean> {

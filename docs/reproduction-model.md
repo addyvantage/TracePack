@@ -13,7 +13,8 @@ should use the local repository, CI, and human review alongside the TracePack bu
 
 TracePack treats a validation command's pre-state as the state that command validated. A successful
 validation command covers the final observed state only when `command.gitBefore.fingerprint.value`
-equals `receipt.final.fingerprint.value` and the receipt's `observationConfidence` is `complete`.
+equals `receipt.final.fingerprint.value` and the receipt's overall `observationConfidence` is
+`complete` for both the final snapshot and the matching validation pre-state snapshot.
 
 If a validation command changes the worktree, that command validated its pre-state, not the new
 post-command state. Unless a later successful validation command covers the new final fingerprint,
@@ -29,3 +30,8 @@ Ignored files are outside default Git status evidence. TracePack does not enumer
 file contents by default, including common ignored directories such as `node_modules`. If validation
 depends on ignored runtime files, the report surfaces this as a blind spot, but the ignored file
 contents are not captured.
+
+In v0.4, ignored paths observed by Git reduce overall receipt confidence unless they are absent or
+explicitly observed under a future stronger mode. This is conservative: changed-file content
+observation can be complete while overall receipt confidence is still partial because ignored inputs
+were present but not inspected in the final state or the matching validation pre-state.

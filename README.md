@@ -40,6 +40,8 @@ node dist/cli.js run -- npm test
 - Receipt confidence showing whether changed-file content observation was complete, partial, or
   unavailable. Large files, symlinks, non-files, unreadable files, excluded sensitive paths, and
   ignored files are surfaced without reading secrets.
+- Overall receipt confidence is stricter than changed-file content observation: ignored paths that
+  are present but not inspected make matching validation limited rather than fully validated.
 - Deterministic warnings such as stale, failed, missing, or inconclusive final-state validation and
   test-related file changes.
 - A local `.tracepack/<run-id>/` bundle with `manifest.json`, `redaction-report.json`, and
@@ -59,7 +61,8 @@ TracePack can support narrow observed claims, such as:
 - that command exited with a specific code at a specific time;
 - Git observed a specific final changed-file set;
 - a successful validation command was observed against the same local state fingerprint as the final
-  observed repository state with complete changed-content observation;
+  observed repository state with complete overall receipt observation for both the final state and
+  the matching validation pre-state;
 - a validation fingerprint match was limited by partial observation, or that validation was stale,
   failed, missing, or inconclusive.
 
@@ -91,7 +94,8 @@ npm run demo:smoke
 
 The demo creates local fixture repositories under `examples/demo-regression/.work/`, generates a
 stale-validation bundle, a corrected bundle where validation happens after the final observed
-change, and a partial-observation bundle that does not overclaim validation.
+change, a partial-observation bundle, and an ignored-input bundle that does not overclaim
+validation.
 
 ## Development
 

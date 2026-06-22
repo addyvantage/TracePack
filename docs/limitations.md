@@ -12,9 +12,11 @@
 - Changed files larger than the safe hashing limit, symlinks, non-files, and unreadable files are
   represented as partial observation with reasons instead of being read.
 - Git ignored files are outside TracePack's default repository-state evidence. TracePack does not
-  enumerate or hash ignored file contents by default.
-- A matching validation fingerprint with partial observation is reported as inconclusive rather than
-  complete final-state validation.
+  enumerate or hash ignored file contents by default. Ignored-path samples may include non-sensitive
+  path labels; sensitive path labels are hidden and represented by path hash plus reason.
+- A matching validation fingerprint with partial changed-content or ignored-path observation in the
+  final snapshot or validation pre-state snapshot is reported as inconclusive rather than complete
+  final-state validation.
 - Command classification is deterministic and conservative.
 - Path-based test detection can include fixtures, snapshots, or helper files.
 - Redaction is best effort and cannot guarantee every sensitive value was removed.

@@ -1,5 +1,9 @@
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { fingerprintGitState } from "../../src/core/state.js";
+import { createGitStateSnapshot, fingerprintGitState } from "../../src/core/state.js";
+import { fileMetadata } from "../../src/core/paths.js";
 import type { GitEvidence } from "../../src/core/manifest.js";
 
 describe("state fingerprint", () => {
@@ -39,7 +43,6 @@ describe("state fingerprint", () => {
   });
 
   it("marks safe changed files without content hashes as partial observation", async () => {
-    const { createGitStateSnapshot } = await import("../../src/core/state.js");
     const snapshot = createGitStateSnapshot(
       git({
         changedFiles: [
@@ -66,7 +69,6 @@ describe("state fingerprint", () => {
   });
 
   it("tracks excluded changed files separately from observed files", async () => {
-    const { createGitStateSnapshot } = await import("../../src/core/state.js");
     const snapshot = createGitStateSnapshot(
       git({
         changedFiles: [
@@ -100,6 +102,84 @@ describe("state fingerprint", () => {
     ]);
     expect(snapshot.unobservedChangedFiles).toEqual([]);
   });
+
+  it("marks ignored-path partial observation as partial overall observation", () => {
+    const snapshot = createGitStateSnapshot(git(), "2026-01-01T00:00:00.000Z", {
+      mode: "partial",
+      count: 1,
+      samples: [
+        {
+          path: "node_modules/",
+          pathHash: "ignoredhash",
+          kind: "directory",
+          reason:
+            "Ignored path was detected by Git status, but TracePack did not read or hash its contents."
+        }
+      ],
+      reason:
+        "One non-TracePack ignored path was observed. TracePack did not read or hash ignored contents."
+    });
+
+    expect(snapshot.contentObservation).toBe("complete");
+    expect(snapshot.overallObservation).toBe("partial");
+    expect(snapshot.ignoredFiles?.mode).toBe("partial");
+  });
+
+  it("records symlinks as unhashable without reading target contents", async () => {
+    const root = await tempRoot();
+    try {
+      await writeFile(path.join(root, "target.txt"), "secret-ish\n", "utf8");
+      await symlink(path.join(root, "target.txt"), path.join(root, "link.txt"));
+
+      await expect(fileMetadata(path.join(root, "link.txt"))).resolves.toEqual(
+        expect.objectContaining({
+          contentHashStatus: "not_hashed",
+          contentHashReason: expect.stringContaining("symbolic link")
+        })
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("records directories as non-file paths", async () => {
+    const root = await tempRoot();
+    try {
+      await mkdir(path.join(root, "dir"));
+
+      await expect(fileMetadata(path.join(root, "dir"))).resolves.toEqual(
+        expect.objectContaining({
+          contentHashStatus: "not_hashed",
+          contentHashReason: expect.stringContaining("not a regular file")
+        })
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("surfaces unreadable file hash failures where the platform enforces permissions", async () => {
+    const root = await tempRoot();
+    const filePath = path.join(root, "unreadable.txt");
+    try {
+      await writeFile(filePath, "cannot read this\n", "utf8");
+      await chmod(filePath, 0o000);
+
+      let failed = false;
+      try {
+        await fileMetadata(filePath);
+      } catch (error) {
+        failed = true;
+        expect((error as Error).message).toBeTruthy();
+      }
+      if (process.platform !== "win32") {
+        expect(failed).toBe(true);
+      }
+    } finally {
+      await chmod(filePath, 0o600).catch(() => undefined);
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 function git(overrides: Partial<GitEvidence> = {}): GitEvidence {
@@ -131,4 +211,8 @@ function changedFile(
     excluded: false,
     looksLikeTest: false
   };
+}
+
+async function tempRoot(): Promise<string> {
+  return mkdtemp(path.join(os.tmpdir(), "TracePack-state-test-"));
 }

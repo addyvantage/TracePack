@@ -27,6 +27,7 @@ Artifacts are stored by GitHub Actions. TracePack itself does not upload to exte
 the workflow steps you configure.
 
 Reviewers should download or open the uploaded bundle and inspect `report.html`, especially the
-Final-State Validation Receipt verdict and confidence line. A `validated_final_state` verdict is
-still a local evidence receipt only; partial or inconclusive confidence means some changed content
-was not fully observed by TracePack.
+Final-State Validation Receipt verdict and overall confidence line. A `validated_final_state`
+verdict is still a local evidence receipt only; partial or inconclusive confidence means some
+repository/input state, such as changed content or ignored paths, was not fully observed by
+TracePack.

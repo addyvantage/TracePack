@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+- Added v0.4 manifests and v0.3 receipts with an overall observation gate for final-state
+  validation.
+- Structured ignored-path observation separately from Git-reported changed-file content observation.
+- Hardened ignored-input semantics so ignored paths present in the final state reduce receipt
+  confidence and matching validation becomes `inconclusive` with `limitedCommandIds`.
+- Hardened matching validation pre-state semantics so ignored or otherwise partial command pre-state
+  observation cannot produce `validated_final_state` just because the final snapshot looks complete.
+- Added ignored-input demo and regression tests so validation that reads an ignored file cannot
+  later report `validated_final_state` after ignored state changes.
+- Preserved v0.1, v0.2, and v0.3 report regeneration without upgrading legacy certainty.
+
 ## 0.3.0
 
 - Added v0.3 manifests and v0.2 receipts with explicit receipt confidence.

@@ -1,9 +1,10 @@
 import { z } from "zod";
 
-export const TRACEPACK_VERSION = "0.3.0";
+export const TRACEPACK_VERSION = "0.4.0";
 export const MANIFEST_SCHEMA_VERSION_V0_1 = "tracepack.manifest.v0.1";
 export const MANIFEST_SCHEMA_VERSION_V0_2 = "tracepack.manifest.v0.2";
-export const MANIFEST_SCHEMA_VERSION = "tracepack.manifest.v0.3";
+export const MANIFEST_SCHEMA_VERSION_V0_3 = "tracepack.manifest.v0.3";
+export const MANIFEST_SCHEMA_VERSION = "tracepack.manifest.v0.4";
 export const SESSION_SCHEMA_VERSION = "tracepack.session.v0.1";
 
 export const EvidenceLabelSchema = z.enum([
@@ -115,8 +116,26 @@ export const ChangedFileObservationSchema = z.object({
 });
 
 export const IgnoredFilesObservationSchema = z.object({
-  mode: z.literal("not_observed"),
-  reason: z.string()
+  mode: z.enum([
+    "not_present",
+    "metadata_observed",
+    "content_observed",
+    "partial",
+    "not_observed",
+    "unavailable"
+  ]),
+  reason: z.string(),
+  count: z.number().int().nonnegative().optional(),
+  samples: z
+    .array(
+      z.object({
+        path: z.string().optional(),
+        pathHash: z.string(),
+        kind: z.enum(["file", "directory", "other", "unknown"]),
+        reason: z.string()
+      })
+    )
+    .optional()
 });
 
 export const GitStateSnapshotSchema = z.object({
@@ -124,6 +143,7 @@ export const GitStateSnapshotSchema = z.object({
   git: GitEvidenceSchema,
   fingerprint: StateFingerprintSchema.optional(),
   contentObservation: ContentObservationSchema.optional(),
+  overallObservation: ContentObservationSchema.optional(),
   observedChangedFiles: z.array(ChangedFileObservationSchema).optional(),
   unobservedChangedFiles: z.array(ChangedFileObservationSchema).optional(),
   excludedChangedFiles: z.array(ChangedFileObservationSchema).optional(),
@@ -158,12 +178,27 @@ export const ValidationReceiptVerdictSchema = z.enum([
 ]);
 
 export const FinalStateReceiptSchema = z.object({
-  schemaVersion: z.enum(["tracepack.receipt.v0.1", "tracepack.receipt.v0.2"]),
+  schemaVersion: z.enum([
+    "tracepack.receipt.v0.1",
+    "tracepack.receipt.v0.2",
+    "tracepack.receipt.v0.3"
+  ]),
   baseline: GitStateSnapshotSchema,
   final: GitStateSnapshotSchema,
   verdict: ValidationReceiptVerdictSchema,
   observationConfidence: ContentObservationSchema.optional(),
+  changedContentObservation: ContentObservationSchema.optional(),
   confidenceReasons: z.array(z.string()).optional(),
+  observationLimits: z
+    .array(
+      z.object({
+        kind: z.string(),
+        evidenceRef: z.string(),
+        path: z.string().optional(),
+        reason: z.string()
+      })
+    )
+    .optional(),
   coveringCommandIds: z.array(z.string()),
   staleCommandIds: z.array(z.string()),
   failedCommandIds: z.array(z.string()),
@@ -221,11 +256,21 @@ export const ManifestV02Schema = ManifestBaseSchema.extend({
 });
 
 export const ManifestV03Schema = ManifestBaseSchema.extend({
+  schemaVersion: z.literal(MANIFEST_SCHEMA_VERSION_V0_3),
+  receipt: FinalStateReceiptSchema
+});
+
+export const ManifestV04Schema = ManifestBaseSchema.extend({
   schemaVersion: z.literal(MANIFEST_SCHEMA_VERSION),
   receipt: FinalStateReceiptSchema
 });
 
-export const ManifestSchema = z.union([ManifestV03Schema, ManifestV02Schema, ManifestV01Schema]);
+export const ManifestSchema = z.union([
+  ManifestV04Schema,
+  ManifestV03Schema,
+  ManifestV02Schema,
+  ManifestV01Schema
+]);
 
 export const RedactionReportSchema = z.object({
   schemaVersion: z.literal("tracepack.redaction-report.v0.1"),
@@ -257,6 +302,7 @@ export type WarningEntry = z.infer<typeof WarningSchema>;
 export type TracePackManifestV01 = z.infer<typeof ManifestV01Schema>;
 export type TracePackManifestV02 = z.infer<typeof ManifestV02Schema>;
 export type TracePackManifestV03 = z.infer<typeof ManifestV03Schema>;
+export type TracePackManifestV04 = z.infer<typeof ManifestV04Schema>;
 export type TracePackManifest = z.infer<typeof ManifestSchema>;
 export type RedactionReport = z.infer<typeof RedactionReportSchema>;
 
