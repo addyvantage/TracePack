@@ -2,7 +2,8 @@
 
 TracePack captures deterministic local evidence around an AI-assisted code change and renders a
 redacted reproducible review bundle showing what changed, what validation ran, whether successful
-validation covered the final repository state, what was not observed, and what needs human review.
+validation covered the final observed repository state, how complete that state observation was,
+what was not observed, and what needs human review.
 
 TracePack does not prove code is correct. It does not prove security. It does not approve PRs. It
 observes local evidence only.
@@ -35,7 +36,10 @@ node dist/cli.js run -- npm test
   code, conservative command classification, pre/post command Git state snapshots, and
   redacted/truncated stdout and stderr summaries.
 - A final-state validation receipt showing whether a successful validation command's pre-state
-  fingerprint matched the final repository-state fingerprint.
+  fingerprint matched the final observed repository-state fingerprint.
+- Receipt confidence showing whether changed-file content observation was complete, partial, or
+  unavailable. Large files, symlinks, non-files, unreadable files, excluded sensitive paths, and
+  ignored files are surfaced without reading secrets.
 - Deterministic warnings such as stale, failed, missing, or inconclusive final-state validation and
   test-related file changes.
 - A local `.tracepack/<run-id>/` bundle with `manifest.json`, `redaction-report.json`, and
@@ -55,7 +59,9 @@ TracePack can support narrow observed claims, such as:
 - that command exited with a specific code at a specific time;
 - Git observed a specific final changed-file set;
 - a successful validation command was observed against the same local state fingerprint as the final
-  repository state, or that such validation was stale, failed, missing, or inconclusive.
+  observed repository state with complete changed-content observation;
+- a validation fingerprint match was limited by partial observation, or that validation was stale,
+  failed, missing, or inconclusive.
 
 ## What It Does Not Prove
 
@@ -84,8 +90,8 @@ npm run demo:smoke
 ```
 
 The demo creates local fixture repositories under `examples/demo-regression/.work/`, generates a
-missing-validation bundle, then generates a corrected bundle where validation happens after the
-final observed change.
+stale-validation bundle, a corrected bundle where validation happens after the final observed
+change, and a partial-observation bundle that does not overclaim validation.
 
 ## Development
 
@@ -102,6 +108,10 @@ npm run verify
 This repository uses TypeScript, Node.js 20+, Commander, Zod, Vitest, ESLint, and Prettier. The
 local-first foundation intentionally avoids React, Next.js, a hosted backend, cloud storage, source
 upload, OAuth, and generic AI review.
+
+Release note: the unscoped npm package name `tracepack` may be unavailable or owned elsewhere. This
+repository is not published to npm by these instructions; publishing may require a scoped package
+name or ownership resolution.
 
 ## License
 

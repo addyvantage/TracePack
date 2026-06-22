@@ -1,4 +1,4 @@
-import type { RedactionReport, TracePackManifest } from "../core/manifest.js";
+import type { GitStateSnapshot, RedactionReport, TracePackManifest } from "../core/manifest.js";
 import { reportStyles } from "./styles.js";
 
 export function renderHtmlReport(
@@ -24,7 +24,7 @@ export function renderHtmlReport(
   <header>
     <h1>TracePack Evidence Report</h1>
     <p class="muted">Run <code>${escapeHtml(manifest.runId)}</code>${manifest.label ? ` - ${escapeHtml(manifest.label)}` : ""}</p>
-    <p>${statusLabel(warnings.length === 0 ? "observed" : "needs_human_review")} TracePack reports observed local evidence. It does not prove correctness, security, or approval.</p>
+    <p>${statusLabel(warnings.length === 0 ? "observed" : "needs_human_review")} TracePack reports observed local evidence. It does not prove correctness, security, approval, or merge readiness.</p>
   </header>
 
   <section>
@@ -125,7 +125,7 @@ function changedFilesTable(manifest: TracePackManifest): string {
     return `<p class="muted">No changed files were observed by Git.</p>`;
   }
   return `<table>
-  <thead><tr><th>Path</th><th>Status</th><th>Test-like</th><th>Additions</th><th>Deletions</th><th>Excluded</th></tr></thead>
+  <thead><tr><th>Path</th><th>Status</th><th>Test-like</th><th>Additions</th><th>Deletions</th><th>Content Hash</th><th>Excluded</th></tr></thead>
   <tbody>
     ${manifest.git.after.changedFiles
       .map(
@@ -135,6 +135,7 @@ function changedFilesTable(manifest: TracePackManifest): string {
       <td>${file.looksLikeTest ? "Yes" : "No"}</td>
       <td>${file.additions ?? ""}</td>
       <td>${file.deletions ?? ""}</td>
+      <td>${escapeHtml(file.contentHashStatus ?? (file.sha256 ? "hashed" : "not captured"))}</td>
       <td>${file.excluded ? escapeHtml(file.exclusionReason ?? "Excluded") : "No"}</td>
     </tr>`
       )
@@ -180,8 +181,21 @@ function receiptSection(manifest: TracePackManifest): string {
 
   const receipt = manifest.receipt;
   const finalHash = receipt.final.fingerprint?.short ?? "Not available";
+  const confidence =
+    receipt.observationConfidence ?? receipt.final.contentObservation ?? "unavailable";
+  const confidenceReasons =
+    receipt.confidenceReasons ??
+    (manifest.schemaVersion === "tracepack.manifest.v0.2"
+      ? ["Legacy v0.2 receipt did not capture observation-confidence details."]
+      : []);
   const covering =
     receipt.coveringCommandIds.length > 0 ? receipt.coveringCommandIds.join(", ") : "None";
+  const limited =
+    (receipt.limitedCommandIds?.length ?? 0) > 0
+      ? `<p><strong>Limited matching command(s):</strong> ${(receipt.limitedCommandIds ?? [])
+          .map((id) => `<code>${escapeHtml(id)}</code>`)
+          .join(", ")}</p>`
+      : "";
   const stale =
     receipt.staleCommandIds.length > 0
       ? `<p><strong>Stale validation command(s):</strong> ${receipt.staleCommandIds
@@ -199,16 +213,62 @@ function receiptSection(manifest: TracePackManifest): string {
     <h2>Final-State Validation Receipt</h2>
     <div class="panel">
       <p>${statusLabel(receipt.verdict)} <strong>${escapeHtml(receipt.explanation)}</strong></p>
+      <p><strong>Receipt confidence:</strong> ${statusLabel(confidence)}</p>
       <div class="grid">
         ${metric("Final State Fingerprint", finalHash)}
-        ${metric("Validated By", covering)}
+        ${metric("Matched Fingerprint Command(s)", covering)}
         ${metric("Baseline Fingerprint", receipt.baseline.fingerprint?.short ?? "Not available")}
       </div>
+      ${confidenceReasonsList(confidenceReasons)}
+      ${limited}
       ${stale}
       ${failed}
+      ${observationDetails(receipt.final)}
       <p class="muted">TracePack does not prove correctness, security, approval, or merge readiness.</p>
     </div>
   </section>`;
+}
+
+function confidenceReasonsList(reasons: string[]): string {
+  if (reasons.length === 0) {
+    return "";
+  }
+  return `<p><strong>Confidence notes:</strong></p><ul>${reasons
+    .map((reason) => `<li>${escapeHtml(reason)}</li>`)
+    .join("")}</ul>`;
+}
+
+function observationDetails(snapshot: GitStateSnapshot): string {
+  const unobserved = snapshot.unobservedChangedFiles ?? [];
+  const excluded = snapshot.excludedChangedFiles ?? [];
+  const ignored = snapshot.ignoredFiles;
+
+  if (unobserved.length === 0 && excluded.length === 0 && !ignored) {
+    return "";
+  }
+
+  return `<div class="panel">
+    <p><strong>Repository-state observation limits</strong></p>
+    ${
+      unobserved.length === 0
+        ? ""
+        : `<p>Changed file content not hashed:</p><ul>${unobserved
+            .map(
+              (file) => `<li><code>${escapeHtml(file.path)}</code>: ${escapeHtml(file.reason)}</li>`
+            )
+            .join("")}</ul>`
+    }
+    ${
+      excluded.length === 0
+        ? ""
+        : `<p>Changed paths excluded from content hashing:</p><ul>${excluded
+            .map(
+              (file) => `<li><code>${escapeHtml(file.path)}</code>: ${escapeHtml(file.reason)}</li>`
+            )
+            .join("")}</ul>`
+    }
+    ${ignored ? `<p class="muted">${escapeHtml(ignored.reason)}</p>` : ""}
+  </div>`;
 }
 
 function warningPanel(warning: TracePackManifest["warnings"][number]): string {
@@ -225,12 +285,17 @@ function statusLabel(value: string): string {
     value.includes("failed") || value === "command_failed"
       ? "bad"
       : value.includes("stale") ||
+          value === "partial" ||
+          value === "unavailable" ||
           value.includes("human") ||
           value.includes("redacted") ||
           value.includes("not_observed") ||
           value === "inconclusive"
         ? "warn"
-        : value === "validated_final_state" || value.includes("validation") || value === "observed"
+        : value === "validated_final_state" ||
+            value === "complete" ||
+            value.includes("validation") ||
+            value === "observed"
           ? "good"
           : "neutral";
   return `<span class="label ${className}">${escapeHtml(value.replaceAll("_", " "))}</span>`;

@@ -66,7 +66,7 @@ describe("integration", () => {
       )
     );
     expect(manifest.commands).toHaveLength(1);
-    expect(manifest.schemaVersion).toBe("tracepack.manifest.v0.2");
+    expect(manifest.schemaVersion).toBe("tracepack.manifest.v0.3");
   });
 
   it("reports validated_final_state when validation runs after the final change", async () => {
@@ -81,8 +81,67 @@ describe("integration", () => {
     const result = await finishSession(repo);
 
     expect(result.manifest.receipt.verdict).toBe("validated_final_state");
+    expect(result.manifest.receipt.observationConfidence).toBe("complete");
     expect(result.manifest.receipt.coveringCommandIds).toEqual(["cmd-001"]);
     expect(result.manifest.warnings.some((warning) => warning.id === "TP001")).toBe(false);
+  });
+
+  it("does not fully validate matching fingerprints when a tracked changed file is too large to hash", async () => {
+    const repo = await createFixtureRepo();
+    const largePath = path.join(repo, "src", "large.txt");
+    await writeFile(largePath, `${"0".repeat(1_100_000)}\n`, "utf8");
+    await exec("git", ["add", "src/large.txt"], repo);
+    await exec("git", ["commit", "-m", "Add large tracked file"], repo);
+
+    await startSession(repo, "large-partial");
+    await writeFile(largePath, `${"1".repeat(1_100_000)}\n`, "utf8");
+    await runCommandInSession(repo, [npmCommand, "test"]);
+    await writeFile(largePath, `${"2".repeat(1_100_000)}\n`, "utf8");
+    const result = await finishSession(repo);
+
+    expect(result.manifest.receipt.coveringCommandIds).toEqual(["cmd-001"]);
+    expect(result.manifest.receipt.verdict).toBe("inconclusive");
+    expect(result.manifest.receipt.observationConfidence).toBe("partial");
+    expect(result.manifest.receipt.final.unobservedChangedFiles).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "src/large.txt" })])
+    );
+  });
+
+  it("does not fully validate when matching state contains a sensitive excluded changed file", async () => {
+    const repo = await createFixtureRepo();
+    await startSession(repo, "sensitive-matching");
+    await writeFile(path.join(repo, ".env"), "SECRET=do-not-read\n", "utf8");
+    await runCommandInSession(repo, [npmCommand, "test"]);
+    const result = await finishSession(repo);
+
+    expect(result.manifest.receipt.coveringCommandIds).toEqual(["cmd-001"]);
+    expect(result.manifest.receipt.verdict).toBe("inconclusive");
+    expect(result.manifest.receipt.observationConfidence).toBe("partial");
+    expect(result.manifest.receipt.final.excludedChangedFiles).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: ".env" })])
+    );
+  });
+
+  it("surfaces ignored-file blind spots when validation reads an ignored file", async () => {
+    const repo = await createFixtureRepo();
+    await mkdir(path.join(repo, "node_modules"), { recursive: true });
+    await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "ok\n", "utf8");
+    await writeFile(
+      path.join(repo, "test", "calc.test.mjs"),
+      "import { readFileSync } from 'node:fs';\nimport { add } from '../src/calc.mjs';\nif (readFileSync('node_modules/runtime-config.txt', 'utf8').trim() !== 'ok') throw new Error('bad config');\nif (add(2, 3) !== 5) throw new Error('bad add');\n",
+      "utf8"
+    );
+    await startSession(repo, "ignored-blind-spot");
+    await runCommandInSession(repo, [npmCommand, "test"]);
+    await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "changed\n", "utf8");
+    const result = await finishSession(repo);
+
+    expect(result.manifest.receipt.verdict).toBe("validated_final_state");
+    expect(result.manifest.receipt.observationConfidence).toBe("complete");
+    expect(result.manifest.receipt.confidenceReasons).toEqual(
+      expect.arrayContaining([expect.stringContaining("Git ignored paths are outside")])
+    );
+    expect(result.manifest.receipt.final.ignoredFiles?.mode).toBe("not_observed");
   });
 
   it("reports validation_stale when validation runs before the final change", async () => {
@@ -100,6 +159,17 @@ describe("integration", () => {
     expect(result.manifest.receipt.staleCommandIds).toEqual(["cmd-001"]);
     expect(result.manifest.warnings.some((warning) => warning.id === "TP001")).toBe(true);
     expect(result.manifest.commands[0]?.classification).toBe("validation");
+  });
+
+  it("reports validation_stale when an untracked safe file changes after validation", async () => {
+    const repo = await createFixtureRepo();
+    await startSession(repo, "untracked-stale");
+    await runCommandInSession(repo, [npmCommand, "test"]);
+    await writeFile(path.join(repo, "src", "new-feature.mjs"), "export const value = 1;\n", "utf8");
+    const result = await finishSession(repo);
+
+    expect(result.manifest.receipt.verdict).toBe("validation_stale");
+    expect(result.manifest.receipt.staleCommandIds).toEqual(["cmd-001"]);
   });
 
   it("reports no_validation_observed when no validation command is captured", async () => {
@@ -170,6 +240,32 @@ describe("integration", () => {
 
     expect(html).toContain("Final-State Validation Receipt");
     expect(html).toContain("legacy v0.1 manifest");
+  });
+
+  it("regenerates reports for v0.2 manifests with a legacy confidence note", async () => {
+    const bundleDir = await mkdtemp(path.join(os.tmpdir(), "TracePack-v02-"));
+    tempRoots.push(bundleDir);
+    const manifest = v02Manifest();
+    await writeFile(
+      path.join(bundleDir, "manifest.json"),
+      JSON.stringify(manifest, null, 2),
+      "utf8"
+    );
+    await writeFile(
+      path.join(bundleDir, "redaction-report.json"),
+      JSON.stringify(
+        createRedactionReport({ runId: manifest.runId, outputs: [], excludedEvidence: [] }),
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const reportPath = await regenerateReport(bundleDir);
+    const html = await readFile(reportPath, "utf8");
+
+    expect(html).toContain("Final-State Validation Receipt");
+    expect(html).toContain("Legacy v0.2 receipt did not capture observation-confidence details.");
   });
 });
 
@@ -252,6 +348,38 @@ function v01Manifest() {
     },
     reproduction: { commands: [], notes: [] },
     limitations: ["TracePack observes local evidence only."]
+  };
+}
+
+function v02Manifest() {
+  const manifest = v01Manifest();
+  const snapshot = {
+    capturedAt: "2026-01-01T00:00:00.000Z",
+    git: manifest.git.after,
+    fingerprint: {
+      algorithm: "tracepack.state-fingerprint.v1",
+      value: "abc",
+      short: "abc",
+      canonicalFields: []
+    },
+    limitations: []
+  };
+
+  return {
+    ...manifest,
+    schemaVersion: "tracepack.manifest.v0.2",
+    receipt: {
+      schemaVersion: "tracepack.receipt.v0.1",
+      baseline: snapshot,
+      final: snapshot,
+      verdict: "validated_final_state",
+      coveringCommandIds: ["cmd-001"],
+      staleCommandIds: [],
+      failedCommandIds: [],
+      evidenceRefs: ["receipt.final.fingerprint"],
+      explanation: "Legacy v0.2 receipt.",
+      limitations: []
+    }
   };
 }
 

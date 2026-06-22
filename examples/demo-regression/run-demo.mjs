@@ -16,10 +16,12 @@ await mkdir(workDir, { recursive: true });
 
 const missing = await runMissingValidationDemo();
 const corrected = await runCorrectedDemo();
+const partial = await runPartialObservationDemo();
 
 console.log("TracePack demo completed.");
-console.log(`Missing-validation report: ${path.join(missing.bundleDir, "report.html")}`);
-console.log(`Corrected report: ${path.join(corrected.bundleDir, "report.html")}`);
+printDemoResult("Missing-validation", missing);
+printDemoResult("Corrected", corrected);
+printDemoResult("Partial-observation", partial);
 
 async function runMissingValidationDemo() {
   const repo = await setupDemoRepo("missing-validation");
@@ -45,7 +47,7 @@ async function runMissingValidationDemo() {
   if (!manifest.warnings.some((warning) => warning.id === "TP001")) {
     throw new Error("Expected missing-validation demo to trigger TP001.");
   }
-  return { repo, bundleDir };
+  return { repo, bundleDir, manifest };
 }
 
 async function runCorrectedDemo() {
@@ -68,7 +70,26 @@ async function runCorrectedDemo() {
   if (manifest.warnings.some((warning) => warning.id === "TP001")) {
     throw new Error("Expected corrected demo not to trigger TP001.");
   }
-  return { repo, bundleDir };
+  return { repo, bundleDir, manifest };
+}
+
+async function runPartialObservationDemo() {
+  const repo = await setupDemoRepo("partial-observation");
+  await execNode(["start", "--label", "partial-observation-sensitive-path"], repo);
+  await writeFile(path.join(repo, ".env"), "SECRET=demo-redacted-by-exclusion\n", "utf8");
+  await execNode(["run", "--", npmCommand, "test"], repo);
+  const finishOutput = await execNode(["finish"], repo);
+  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout);
+  const manifest = await readManifest(bundleDir);
+  if (manifest.receipt?.verdict === "validated_final_state") {
+    throw new Error("Expected partial-observation demo not to overclaim final-state validation.");
+  }
+  if (manifest.receipt?.observationConfidence !== "partial") {
+    throw new Error(
+      `Expected partial-observation demo confidence to be partial, got ${manifest.receipt?.observationConfidence}.`
+    );
+  }
+  return { repo, bundleDir, manifest };
 }
 
 async function setupDemoRepo(name) {
@@ -146,4 +167,11 @@ async function readManifest(bundleDir) {
 
 async function sleep(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function printDemoResult(label, result) {
+  console.log(`${label} report: ${path.join(result.bundleDir, "report.html")}`);
+  console.log(
+    `${label} receipt: ${result.manifest.receipt?.verdict ?? "missing"} / ${result.manifest.receipt?.observationConfidence ?? "unknown"}`
+  );
 }

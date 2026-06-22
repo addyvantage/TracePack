@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { lstat, readFile, stat } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { SafePathDescriptor } from "./manifest.js";
 
@@ -20,6 +20,8 @@ const SENSITIVE_PATH_PATTERNS: RegExp[] = [
   /(^|[\\/])Library[\\/]Keychains([\\/]|$)/i,
   /(^|[\\/])AppData[\\/]Roaming[\\/]Microsoft[\\/]Protect([\\/]|$)/i
 ];
+
+export const SAFE_FILE_HASH_LIMIT_BYTES = 1024 * 1024;
 
 export function createRunId(date = new Date()): string {
   const stamp = date
@@ -79,7 +81,7 @@ export function shortHash(value: string): string {
 
 export async function hashFileIfSafe(
   absolutePath: string,
-  limitBytes = 1024 * 1024
+  limitBytes = SAFE_FILE_HASH_LIMIT_BYTES
 ): Promise<string | undefined> {
   const info = await lstat(absolutePath);
   if (info.isSymbolicLink() || !info.isFile() || info.size > limitBytes) {
@@ -94,16 +96,52 @@ export async function fileMetadata(absolutePath: string): Promise<{
   sizeBytes?: number;
   mtime?: string;
   sha256?: string;
+  contentHashStatus?: "hashed" | "not_hashed";
+  contentHashReason?: string;
 }> {
-  const info = await stat(absolutePath);
+  const info = await lstat(absolutePath);
+  const base = {
+    sizeBytes: info.size,
+    mtime: info.mtime.toISOString()
+  };
+
+  if (info.isSymbolicLink()) {
+    return {
+      ...base,
+      contentHashStatus: "not_hashed",
+      contentHashReason: "Path is a symbolic link; TracePack did not read the target contents."
+    };
+  }
+
   if (!info.isFile()) {
-    return {};
+    return {
+      ...base,
+      contentHashStatus: "not_hashed",
+      contentHashReason: "Path is not a regular file; content hash was not captured."
+    };
+  }
+
+  if (info.size > SAFE_FILE_HASH_LIMIT_BYTES) {
+    return {
+      ...base,
+      contentHashStatus: "not_hashed",
+      contentHashReason: `File is larger than the ${SAFE_FILE_HASH_LIMIT_BYTES} byte safe hashing limit.`
+    };
+  }
+
+  const sha256 = await hashFileIfSafe(absolutePath);
+  if (!sha256) {
+    return {
+      ...base,
+      contentHashStatus: "not_hashed",
+      contentHashReason: "File content hash could not be captured within safe hashing rules."
+    };
   }
 
   return {
-    sizeBytes: info.size,
-    mtime: info.mtime.toISOString(),
-    sha256: await hashFileIfSafe(absolutePath)
+    ...base,
+    sha256,
+    contentHashStatus: "hashed"
   };
 }
 

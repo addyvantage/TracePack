@@ -44,6 +44,23 @@ describe("receipt verdicts", () => {
     ).toBe("no_validation_observed");
   });
 
+  it("does not fully validate a matching fingerprint when observation is partial", () => {
+    const final = partialSnapshot("final");
+    const receipt = createFinalStateReceipt({
+      baseline: snapshot("base"),
+      final,
+      commands: [command("cmd-001", 0, "validation", final)]
+    });
+
+    expect(receipt.verdict).toBe("inconclusive");
+    expect(receipt.observationConfidence).toBe("partial");
+    expect(receipt.coveringCommandIds).toEqual(["cmd-001"]);
+    expect(receipt.limitedCommandIds).toEqual(["cmd-001"]);
+    expect(receipt.confidenceReasons).toEqual(
+      expect.arrayContaining([expect.stringContaining("large.bin")])
+    );
+  });
+
   it("marks missing final fingerprints as inconclusive", () => {
     expect(
       receiptVerdict({
@@ -59,6 +76,26 @@ describe("receipt verdicts", () => {
 
 function snapshot(label: string): GitStateSnapshot {
   return createGitStateSnapshot(git(label), `2026-01-01T00:00:00.000Z`);
+}
+
+function partialSnapshot(label: string): GitStateSnapshot {
+  return createGitStateSnapshot(
+    {
+      ...git(label),
+      changedFiles: [
+        {
+          path: "large.bin",
+          status: " M",
+          sizeBytes: 2_000_000,
+          contentHashStatus: "not_hashed",
+          contentHashReason: "File is larger than the safe hashing limit.",
+          excluded: false,
+          looksLikeTest: false
+        }
+      ]
+    },
+    `2026-01-01T00:00:00.000Z`
+  );
 }
 
 function git(label: string): GitEvidence {

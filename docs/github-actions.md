@@ -25,3 +25,8 @@ Adapt the validation command to your project:
 
 Artifacts are stored by GitHub Actions. TracePack itself does not upload to external storage outside
 the workflow steps you configure.
+
+Reviewers should download or open the uploaded bundle and inspect `report.html`, especially the
+Final-State Validation Receipt verdict and confidence line. A `validated_final_state` verdict is
+still a local evidence receipt only; partial or inconclusive confidence means some changed content
+was not fully observed by TracePack.

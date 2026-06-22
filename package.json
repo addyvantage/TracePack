@@ -1,6 +1,6 @@
 {
   "name": "tracepack",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local-first evidence bundles for AI-assisted code changes.",
   "type": "module",
   "bin": {
@@ -23,6 +23,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepack": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -38,6 +39,14 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/addyvantage/TracePack.git"
+  },
+  "bugs": {
+    "url": "https://github.com/addyvantage/TracePack/issues"
+  },
+  "homepage": "https://github.com/addyvantage/TracePack#readme",
   "engines": {
     "node": ">=20.11"
   },

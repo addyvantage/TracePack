@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 import { captureGitEvidence } from "./git.js";
-import type { ChangedFile, GitEvidence, GitStateSnapshot, StateFingerprint } from "./manifest.js";
+import type {
+  ChangedFile,
+  ChangedFileObservation,
+  ContentObservation,
+  GitEvidence,
+  GitStateSnapshot,
+  StateFingerprint
+} from "./manifest.js";
 import { normalizeRelativePath } from "./paths.js";
 
 const FINGERPRINT_ALGORITHM = "tracepack.state-fingerprint.v1" as const;
@@ -17,6 +24,8 @@ const CANONICAL_FIELDS = [
   "changedFiles.deletions",
   "changedFiles.sizeBytes",
   "changedFiles.sha256",
+  "changedFiles.contentHashStatus",
+  "changedFiles.contentHashReason",
   "changedFiles.excluded",
   "changedFiles.exclusionReason",
   "changedFiles.looksLikeTest",
@@ -42,6 +51,8 @@ type CanonicalStateInput = {
       deletions?: number;
       sizeBytes?: number;
       sha256?: string;
+      contentHashStatus?: string;
+      contentHashReason?: string;
       excluded: boolean;
       exclusionReason?: string;
       looksLikeTest: boolean;
@@ -61,14 +72,25 @@ export function createGitStateSnapshot(
   capturedAt = new Date().toISOString()
 ): GitStateSnapshot {
   const fingerprint = git.available && git.isRepository ? fingerprintGitState(git) : undefined;
+  const observation = observeChangedContent(git);
 
   return {
     capturedAt,
     git,
     fingerprint,
+    contentObservation: observation.contentObservation,
+    observedChangedFiles: observation.observedChangedFiles,
+    unobservedChangedFiles: observation.unobservedChangedFiles,
+    excludedChangedFiles: observation.excludedChangedFiles,
+    ignoredFiles: {
+      mode: "not_observed",
+      reason:
+        "Git ignored paths are outside TracePack's default repository-state evidence and are not listed or hashed."
+    },
     limitations: [
       "State fingerprints are deterministic metadata receipts, not source-code contents.",
-      "Sensitive paths and TracePack internal paths remain excluded from file hashing.",
+      "Sensitive paths and TracePack internal paths remain excluded from file hashing and are reported as limited evidence.",
+      "Git ignored paths are outside the default repository-state evidence; TracePack does not read ignored file contents.",
       "A matching fingerprint means TracePack observed the same local Git/worktree metadata, not that the code is correct or secure."
     ]
   };
@@ -137,6 +159,8 @@ function canonicalChangedFile(
     deletions: file.deletions,
     sizeBytes: file.sizeBytes,
     sha256: file.sha256,
+    contentHashStatus: file.contentHashStatus,
+    contentHashReason: file.contentHashReason,
     excluded: file.excluded,
     exclusionReason: file.exclusionReason,
     looksLikeTest: file.looksLikeTest
@@ -150,6 +174,75 @@ function compareChangedFiles(
   return `${a.path}\0${a.status}\0${a.previousPath ?? ""}`.localeCompare(
     `${b.path}\0${b.status}\0${b.previousPath ?? ""}`
   );
+}
+
+function observeChangedContent(git: GitEvidence): {
+  contentObservation: ContentObservation;
+  observedChangedFiles: ChangedFileObservation[];
+  unobservedChangedFiles: ChangedFileObservation[];
+  excludedChangedFiles: ChangedFileObservation[];
+} {
+  if (!git.available || !git.isRepository) {
+    return {
+      contentObservation: "unavailable",
+      observedChangedFiles: [],
+      unobservedChangedFiles: [],
+      excludedChangedFiles: []
+    };
+  }
+
+  const observedChangedFiles: ChangedFileObservation[] = [];
+  const unobservedChangedFiles: ChangedFileObservation[] = [];
+  const excludedChangedFiles: ChangedFileObservation[] = [];
+
+  for (const file of git.changedFiles) {
+    if (file.excluded) {
+      excludedChangedFiles.push(observationForFile(file, file.exclusionReason ?? "Excluded."));
+      continue;
+    }
+
+    if (file.status.includes("D")) {
+      observedChangedFiles.push(
+        observationForFile(
+          file,
+          "Deleted file content is represented by Git status and diff stats."
+        )
+      );
+      continue;
+    }
+
+    if (file.sha256) {
+      observedChangedFiles.push(
+        observationForFile(file, "Safe changed-file content hash captured.")
+      );
+      continue;
+    }
+
+    unobservedChangedFiles.push(
+      observationForFile(
+        file,
+        file.contentHashReason ?? "Safe changed-file content hash was not captured."
+      )
+    );
+  }
+
+  return {
+    contentObservation:
+      excludedChangedFiles.length > 0 || unobservedChangedFiles.length > 0 ? "partial" : "complete",
+    observedChangedFiles,
+    unobservedChangedFiles,
+    excludedChangedFiles
+  };
+}
+
+function observationForFile(file: ChangedFile, reason: string): ChangedFileObservation {
+  return {
+    path: normalizeRelativePath(file.path),
+    status: file.status,
+    reason,
+    sizeBytes: file.sizeBytes,
+    evidenceRef: `git.changedFiles:${normalizeRelativePath(file.path)}`
+  };
 }
 
 function sortForJson(value: unknown): unknown {

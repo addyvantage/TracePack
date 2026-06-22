@@ -1,8 +1,9 @@
 import { z } from "zod";
 
-export const TRACEPACK_VERSION = "0.2.0";
+export const TRACEPACK_VERSION = "0.3.0";
 export const MANIFEST_SCHEMA_VERSION_V0_1 = "tracepack.manifest.v0.1";
-export const MANIFEST_SCHEMA_VERSION = "tracepack.manifest.v0.2";
+export const MANIFEST_SCHEMA_VERSION_V0_2 = "tracepack.manifest.v0.2";
+export const MANIFEST_SCHEMA_VERSION = "tracepack.manifest.v0.3";
 export const SESSION_SCHEMA_VERSION = "tracepack.session.v0.1";
 
 export const EvidenceLabelSchema = z.enum([
@@ -68,6 +69,8 @@ export const ChangedFileSchema = z.object({
   sizeBytes: z.number().int().nonnegative().optional(),
   mtime: z.string().optional(),
   sha256: z.string().optional(),
+  contentHashStatus: z.enum(["hashed", "not_hashed", "not_applicable", "excluded"]).optional(),
+  contentHashReason: z.string().optional(),
   excluded: z.boolean(),
   exclusionReason: z.string().optional(),
   looksLikeTest: z.boolean()
@@ -101,10 +104,30 @@ export const StateFingerprintSchema = z.object({
   canonicalFields: z.array(z.string())
 });
 
+export const ContentObservationSchema = z.enum(["complete", "partial", "unavailable"]);
+
+export const ChangedFileObservationSchema = z.object({
+  path: z.string(),
+  status: z.string(),
+  reason: z.string(),
+  sizeBytes: z.number().int().nonnegative().optional(),
+  evidenceRef: z.string()
+});
+
+export const IgnoredFilesObservationSchema = z.object({
+  mode: z.literal("not_observed"),
+  reason: z.string()
+});
+
 export const GitStateSnapshotSchema = z.object({
   capturedAt: z.string(),
   git: GitEvidenceSchema,
   fingerprint: StateFingerprintSchema.optional(),
+  contentObservation: ContentObservationSchema.optional(),
+  observedChangedFiles: z.array(ChangedFileObservationSchema).optional(),
+  unobservedChangedFiles: z.array(ChangedFileObservationSchema).optional(),
+  excludedChangedFiles: z.array(ChangedFileObservationSchema).optional(),
+  ignoredFiles: IgnoredFilesObservationSchema.optional(),
   limitations: z.array(z.string())
 });
 
@@ -135,13 +158,16 @@ export const ValidationReceiptVerdictSchema = z.enum([
 ]);
 
 export const FinalStateReceiptSchema = z.object({
-  schemaVersion: z.literal("tracepack.receipt.v0.1"),
+  schemaVersion: z.enum(["tracepack.receipt.v0.1", "tracepack.receipt.v0.2"]),
   baseline: GitStateSnapshotSchema,
   final: GitStateSnapshotSchema,
   verdict: ValidationReceiptVerdictSchema,
+  observationConfidence: ContentObservationSchema.optional(),
+  confidenceReasons: z.array(z.string()).optional(),
   coveringCommandIds: z.array(z.string()),
   staleCommandIds: z.array(z.string()),
   failedCommandIds: z.array(z.string()),
+  limitedCommandIds: z.array(z.string()).optional(),
   evidenceRefs: z.array(z.string()),
   explanation: z.string(),
   limitations: z.array(z.string())
@@ -190,11 +216,16 @@ export const ManifestV01Schema = ManifestBaseSchema.extend({
 });
 
 export const ManifestV02Schema = ManifestBaseSchema.extend({
+  schemaVersion: z.literal(MANIFEST_SCHEMA_VERSION_V0_2),
+  receipt: FinalStateReceiptSchema
+});
+
+export const ManifestV03Schema = ManifestBaseSchema.extend({
   schemaVersion: z.literal(MANIFEST_SCHEMA_VERSION),
   receipt: FinalStateReceiptSchema
 });
 
-export const ManifestSchema = z.union([ManifestV02Schema, ManifestV01Schema]);
+export const ManifestSchema = z.union([ManifestV03Schema, ManifestV02Schema, ManifestV01Schema]);
 
 export const RedactionReportSchema = z.object({
   schemaVersion: z.literal("tracepack.redaction-report.v0.1"),
@@ -216,6 +247,8 @@ export type ExcludedEvidence = z.infer<typeof ExcludedEvidenceSchema>;
 export type ChangedFile = z.infer<typeof ChangedFileSchema>;
 export type GitEvidence = z.infer<typeof GitEvidenceSchema>;
 export type StateFingerprint = z.infer<typeof StateFingerprintSchema>;
+export type ContentObservation = z.infer<typeof ContentObservationSchema>;
+export type ChangedFileObservation = z.infer<typeof ChangedFileObservationSchema>;
 export type GitStateSnapshot = z.infer<typeof GitStateSnapshotSchema>;
 export type CommandEvidence = z.infer<typeof CommandEvidenceSchema>;
 export type ValidationReceiptVerdict = z.infer<typeof ValidationReceiptVerdictSchema>;
@@ -223,6 +256,7 @@ export type FinalStateReceipt = z.infer<typeof FinalStateReceiptSchema>;
 export type WarningEntry = z.infer<typeof WarningSchema>;
 export type TracePackManifestV01 = z.infer<typeof ManifestV01Schema>;
 export type TracePackManifestV02 = z.infer<typeof ManifestV02Schema>;
+export type TracePackManifestV03 = z.infer<typeof ManifestV03Schema>;
 export type TracePackManifest = z.infer<typeof ManifestSchema>;
 export type RedactionReport = z.infer<typeof RedactionReportSchema>;
 

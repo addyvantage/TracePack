@@ -120,6 +120,18 @@ async function collectChangedFiles(
       additions: numstat.get(relPath)?.additions,
       deletions: numstat.get(relPath)?.deletions,
       excluded: sensitive,
+      contentHashStatus: sensitive
+        ? "excluded"
+        : status.includes("D")
+          ? "not_applicable"
+          : undefined,
+      contentHashReason: sensitive
+        ? internalTracePackPath
+          ? "Path is TracePack internal bundle/session state; content was not read."
+          : "Path matched TracePack sensitive path denylist; content was not read."
+        : status.includes("D")
+          ? "File is deleted in the worktree; content hash is not applicable."
+          : undefined,
       exclusionReason: sensitive
         ? internalTracePackPath
           ? "Path is TracePack internal bundle/session state."
@@ -134,7 +146,11 @@ async function collectChangedFiles(
         files.push({ ...base, ...(await fileMetadata(absolutePath)) });
         continue;
       } catch {
-        files.push(base);
+        files.push({
+          ...base,
+          contentHashStatus: "not_hashed",
+          contentHashReason: "File metadata or content hash could not be read."
+        });
         continue;
       }
     }

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+- Added v0.3 manifests and v0.2 receipts with explicit receipt confidence.
+- Added changed-content observation completeness for state snapshots, including fully observed,
+  unobserved, excluded, and ignored-file evidence categories.
+- Hardened receipt semantics so matching validation fingerprints with partial changed-content
+  observation report `inconclusive` rather than unconditional `validated_final_state`.
+- Surfaced large-file, symlink, non-file, unreadable-file, sensitive-path, and ignored-file limits
+  in reports and documentation without reading excluded contents.
+- Added demo coverage for normal validation, stale validation, and partial-observation receipts.
+- Added `prepack` build guard and package repository/bugs/homepage metadata so npm packing cannot
+  silently omit `dist/cli.js` from a clean clone.
+- Documented the unscoped npm package-name release blocker.
+
 ## 0.2.0
 
 - Added v0.2 manifests with a final-state validation receipt.

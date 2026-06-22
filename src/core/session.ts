@@ -11,7 +11,7 @@ import {
   type GitEvidence,
   type GitStateSnapshot,
   type RedactionReport,
-  type TracePackManifestV02
+  type TracePackManifestV03
 } from "./manifest.js";
 import { createFinalStateReceipt } from "./receipt.js";
 import { createRedactionReport } from "./redaction.js";
@@ -124,7 +124,7 @@ export async function finishSession(
   label?: string
 ): Promise<{
   session: SessionState;
-  manifest: TracePackManifestV02;
+  manifest: TracePackManifestV03;
   redactionReport: RedactionReport;
   bundleDir: string;
 }> {
@@ -161,7 +161,7 @@ export async function finishSession(
     outputs,
     excludedEvidence
   });
-  const manifest: TracePackManifestV02 = {
+  const manifest: TracePackManifestV03 = {
     schemaVersion: MANIFEST_SCHEMA_VERSION,
     TracePackVersion: TRACEPACK_VERSION,
     runId: session.runId,
@@ -195,7 +195,8 @@ export async function finishSession(
     limitations: [
       "TracePack observes local Git state and commands executed through the TracePack CLI only.",
       "TracePack does not prove code correctness, security, merge readiness, or policy compliance.",
-      "State fingerprints, Git status, and command classification are deterministic but limited signals.",
+      "State fingerprints, Git status, content-observation completeness, and command classification are deterministic but limited signals.",
+      "Ignored files are outside TracePack's default Git-observed repository-state evidence.",
       "Redaction is best effort and cannot guarantee every sensitive value is removed.",
       "No source code, prompts, transcripts, environment variable values, credentials, or browser sessions are uploaded by TracePack."
     ]

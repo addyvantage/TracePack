@@ -37,6 +37,69 @@ describe("state fingerprint", () => {
 
     expect(left.value).not.toBe(right.value);
   });
+
+  it("marks safe changed files without content hashes as partial observation", async () => {
+    const { createGitStateSnapshot } = await import("../../src/core/state.js");
+    const snapshot = createGitStateSnapshot(
+      git({
+        changedFiles: [
+          {
+            path: "large.bin",
+            status: " M",
+            sizeBytes: 2_000_000,
+            contentHashStatus: "not_hashed",
+            contentHashReason: "File is larger than the safe hashing limit.",
+            excluded: false,
+            looksLikeTest: false
+          }
+        ]
+      })
+    );
+
+    expect(snapshot.contentObservation).toBe("partial");
+    expect(snapshot.unobservedChangedFiles).toEqual([
+      expect.objectContaining({
+        path: "large.bin",
+        reason: "File is larger than the safe hashing limit."
+      })
+    ]);
+  });
+
+  it("tracks excluded changed files separately from observed files", async () => {
+    const { createGitStateSnapshot } = await import("../../src/core/state.js");
+    const snapshot = createGitStateSnapshot(
+      git({
+        changedFiles: [
+          {
+            path: ".env",
+            status: "??",
+            excluded: true,
+            exclusionReason: "Path matched TracePack sensitive path denylist.",
+            contentHashStatus: "excluded",
+            contentHashReason:
+              "Path matched TracePack sensitive path denylist; content was not read.",
+            looksLikeTest: false
+          }
+        ],
+        excludedEvidence: [
+          {
+            kind: "file_metadata",
+            path: ".env",
+            reason: "Path matched TracePack sensitive path denylist."
+          }
+        ]
+      })
+    );
+
+    expect(snapshot.contentObservation).toBe("partial");
+    expect(snapshot.excludedChangedFiles).toEqual([
+      expect.objectContaining({
+        path: ".env",
+        reason: "Path matched TracePack sensitive path denylist."
+      })
+    ]);
+    expect(snapshot.unobservedChangedFiles).toEqual([]);
+  });
 });
 
 function git(overrides: Partial<GitEvidence> = {}): GitEvidence {
