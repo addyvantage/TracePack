@@ -1,0 +1,23 @@
+# Privacy And Redaction
+
+Tracepack is local-first. It writes bundles to `.tracepack/<run-id>/` and does not upload source,
+prompts, transcripts, environment variable values, `.env` contents, credentials, browser sessions,
+or repository contents.
+
+## Excluded Paths
+
+Tracepack excludes sensitive path patterns before reading file metadata or optional hashes:
+
+- `.env` and `.env.*`;
+- SSH material and private keys;
+- cloud credential folders such as `.aws`, `.azure`, and gcloud config;
+- package-manager credential files such as `.npmrc`, `.yarnrc`, and `.pnpmrc`;
+- browser cookie/profile stores and OS keychain-like paths;
+- Tracepack internal `.tracepack/` state.
+
+## Output Redaction
+
+Captured stdout and stderr summaries are truncated and redacted for common secret-like strings such
+as API keys, GitHub tokens, AWS access keys, assignment-style secrets, and private key blocks.
+
+Redaction is best effort, not a guarantee. Avoid printing secrets during validation commands.

@@ -1,0 +1,57 @@
+{
+  "name": "tracepack",
+  "version": "0.1.0",
+  "description": "Local-first evidence bundles for AI-assisted code changes.",
+  "type": "module",
+  "bin": {
+    "tracepack": "./dist/cli.js"
+  },
+  "main": "./dist/cli.js",
+  "types": "./dist/cli.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "docs",
+    "examples/github-actions"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "npm run verify",
+    "demo:smoke": "npm run build && node examples/demo-regression/run-demo.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run demo:smoke"
+  },
+  "keywords": [
+    "ai",
+    "cli",
+    "git",
+    "evidence",
+    "reproducibility",
+    "validation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.0.0",
+    "eslint": "^10.5.0",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "zod": "^4.4.3"
+  }
+}
