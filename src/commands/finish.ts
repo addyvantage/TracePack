@@ -1,0 +1,20 @@
+import type { Command } from "commander";
+import path from "node:path";
+import { finishSession } from "../core/session.js";
+
+export function registerFinish(program: Command): void {
+  program
+    .command("finish")
+    .description("Close the active TracePack session and generate the review bundle.")
+    .option("--label <name>", "override or set the run label")
+    .action(async (options: { label?: string }) => {
+      const result = await finishSession(process.cwd(), options.label);
+      console.log(`TracePack session finished: ${result.session.runId}`);
+      console.log(`Bundle written: ${result.bundleDir}`);
+      console.log(`Manifest: ${path.join(result.bundleDir, "manifest.json")}`);
+      console.log(`Report: ${path.join(result.bundleDir, "report.html")}`);
+      if (result.manifest.warnings.length > 0) {
+        console.log(`Warnings: ${result.manifest.warnings.length} need human review`);
+      }
+    });
+}

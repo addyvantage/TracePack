@@ -1,0 +1,109 @@
+# TracePack
+
+TracePack captures deterministic local evidence around an AI-assisted code change and renders a
+redacted reproducible review bundle showing what changed, what validation ran, whether successful
+validation covered the final repository state, what was not observed, and what needs human review.
+
+TracePack does not prove code is correct. It does not prove security. It does not approve PRs. It
+observes local evidence only.
+
+## 30-Second Quickstart
+
+```bash
+npm install
+npm run build
+node dist/cli.js doctor
+node dist/cli.js start --label local-review
+# make or review local changes
+node dist/cli.js run -- npm test
+node dist/cli.js finish
+```
+
+Open `.tracepack/<run-id>/report.html` directly from disk.
+
+For a one-command bundle:
+
+```bash
+node dist/cli.js run -- npm test
+```
+
+## What TracePack Captures
+
+- Git repository detection, branch, HEAD before and after, dirty-state status, changed-file
+  metadata, changed-file counts, diff statistics, and deterministic state fingerprints.
+- Commands run through `tracepack run -- <command...>`, including argv, timestamps, duration, exit
+  code, conservative command classification, pre/post command Git state snapshots, and
+  redacted/truncated stdout and stderr summaries.
+- A final-state validation receipt showing whether a successful validation command's pre-state
+  fingerprint matched the final repository-state fingerprint.
+- Deterministic warnings such as stale, failed, missing, or inconclusive final-state validation and
+  test-related file changes.
+- A local `.tracepack/<run-id>/` bundle with `manifest.json`, `redaction-report.json`, and
+  `report.html`.
+
+## What TracePack Does Not Capture
+
+TracePack does not capture entire repository contents, full raw diffs by default, prompt
+transcripts, environment variable values, `.env` contents, SSH keys, API keys, browser cookies,
+credential stores, or unrelated workspace contents. Redaction is best effort and not a guarantee.
+
+## What It Proves
+
+TracePack can support narrow observed claims, such as:
+
+- a specific command was run through TracePack;
+- that command exited with a specific code at a specific time;
+- Git observed a specific final changed-file set;
+- a successful validation command was observed against the same local state fingerprint as the final
+  repository state, or that such validation was stale, failed, missing, or inconclusive.
+
+## What It Does Not Prove
+
+TracePack does not prove correctness, security, merge readiness, policy compliance, developer
+intent, or that validation did not happen elsewhere.
+
+## CLI
+
+```bash
+tracepack start [--label <name>]
+tracepack run -- <command...>
+tracepack finish [--label <name>]
+tracepack report <bundle-dir>
+tracepack doctor
+```
+
+The CLI uses local Git and user-approved commands. It does not require a remote repository,
+accounts, auth, a database, Docker, a browser extension, or external model APIs.
+
+## Demo
+
+After building, run:
+
+```bash
+npm run demo:smoke
+```
+
+The demo creates local fixture repositories under `examples/demo-regression/.work/`, generates a
+missing-validation bundle, then generates a corrected bundle where validation happens after the
+final observed change.
+
+## Development
+
+```bash
+npm install
+npm run typecheck
+npm run lint
+npm run format:check
+npm run test
+npm run build
+npm run verify
+```
+
+This repository uses TypeScript, Node.js 20+, Commander, Zod, Vitest, ESLint, and Prettier. The
+local-first foundation intentionally avoids React, Next.js, a hosted backend, cloud storage, source
+upload, OAuth, and generic AI review.
+
+## License
+
+MIT is used for low-friction early adoption. Apache-2.0 remains a reasonable future alternative if
+patent clarity becomes important.

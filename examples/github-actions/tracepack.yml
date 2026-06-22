@@ -1,0 +1,55 @@
+name: TracePack Evidence
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  TracePack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TracePack CLI
+        run: npm run build
+
+      - name: TracePack start
+        run: node dist/cli.js start --label "github-actions-${{ github.run_id }}"
+
+      - name: TracePack run validation
+        run: node dist/cli.js run -- npm test
+
+      - name: TracePack finish
+        if: always()
+        run: node dist/cli.js finish
+
+      - name: Locate latest TracePack bundle
+        if: always()
+        id: bundle
+        shell: bash
+        run: |
+          bundle="$(ls -td .tracepack/* | head -1)"
+          echo "path=$bundle" >> "$GITHUB_OUTPUT"
+          echo "TracePack bundle: $bundle" >> "$GITHUB_STEP_SUMMARY"
+          echo "TracePack reports observed evidence only. It does not approve this PR." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload TracePack bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TracePack-evidence-${{ github.run_id }}
+          path: ${{ steps.bundle.outputs.path }}
+          if-no-files-found: error
