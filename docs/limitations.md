@@ -21,3 +21,12 @@
 - Path-based test detection can include fixtures, snapshots, or helper files.
 - Redaction is best effort and cannot guarantee every sensitive value was removed.
 - TracePack does not capture validation that happened outside `tracepack run`.
+- Timeout handling terminates the direct child process first. Detached descendant processes may be
+  platform-dependent and should be reviewed separately.
+- Robust cross-platform Ctrl+C/SIGINT command evidence capture is not implemented yet. Use
+  `tracepack status` and `tracepack clean --force` to recover from abandoned active-session
+  pointers.
+- `tracepack status` relies on stored session data. It does not recapture or hash the current Git
+  state.
+- `.tracepack/` Git ignore detection in `doctor` is best-effort and based on Git's ignore rules for
+  the current work tree.

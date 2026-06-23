@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Added `tracepack status` for active-session visibility, including stale pointer diagnostics and
+  captured command summaries.
+- Added `tracepack clean` to remove only the active-session pointer without deleting bundles or
+  session data.
+- Expanded `tracepack finish` terminal output with receipt verdict, confidence, command counts,
+  warnings, changed-file examples, and bundle paths.
+- Added a `doctor` warning when `.tracepack/` does not appear to be ignored by Git.
+- Improved the HTML report top section so receipt verdict, confidence, warning count, command
+  counts, changed-file count, and the main limitation are visible immediately.
+
 ## 0.6.0
 
 - Added `tracepack assert <bundle-dir>` for local CI policy checks over manifest-derived receipt

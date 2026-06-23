@@ -32,6 +32,28 @@ describe("report rendering", () => {
     expect(html).not.toContain('<span class="label good">no validation observed</span>');
   });
 
+  it("renders receipt and warning details in the HTML top summary", () => {
+    const manifest = validateManifest({
+      ...sampleNoValidationReceiptManifest(),
+      warnings: [warning()]
+    });
+    const html = renderHtmlReport(
+      manifest,
+      createRedactionReport({ runId: manifest.runId, outputs: [], excludedEvidence: [] })
+    );
+
+    expect(html).toContain("Evidence Summary");
+    expect(html).toContain("Receipt Verdict");
+    expect(html).toContain("no_validation_observed");
+    expect(html).toContain("Confidence");
+    expect(html).toContain("complete");
+    expect(html).toContain("Needs human review:");
+    expect(html).toContain("Validation did not cover final observed state");
+    expect(html).toContain(
+      "TracePack records observed local evidence. It does not prove correctness, security, approval, or merge readiness."
+    );
+  });
+
   it("renders a concise markdown report with receipt and limitation sections", () => {
     const manifest = validateManifest(sampleNoValidationReceiptManifest());
     const markdown = renderMarkdownReport(
@@ -280,5 +302,16 @@ function output(text: string): TracePackManifest["commands"][number]["stdout"] {
     truncated: false,
     redacted: false,
     replacements: []
+  };
+}
+
+function warning(): TracePackManifest["warnings"][number] {
+  return {
+    id: "TP001",
+    title: "Validation did not cover final observed state",
+    trigger: "test",
+    evidenceRefs: ["receipt"],
+    humanReview: "Run validation after the final change.",
+    label: "needs_human_review"
   };
 }

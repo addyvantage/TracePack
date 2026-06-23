@@ -15,6 +15,7 @@ npm install
 npm run build
 node dist/cli.js doctor
 node dist/cli.js start --label local-review
+node dist/cli.js status
 # make or review local changes
 node dist/cli.js run -- npm test
 node dist/cli.js finish
@@ -78,9 +79,11 @@ intent, or that validation did not happen elsewhere.
 ```bash
 tracepack start [--label <name>]
 tracepack run [--timeout <seconds>] -- <command...>
+tracepack status
 tracepack finish [--label <name>]
 tracepack report <bundle-dir> [--format html|markdown|json|all] [--out <path>]
 tracepack assert <bundle-dir> [--require-verdict <verdict>] [--require-confidence <confidence>] [--allow-warnings] [--json] [--summary-out <path>] [--quiet]
+tracepack clean [--force]
 tracepack doctor
 ```
 
@@ -91,6 +94,11 @@ accounts, auth, a database, Docker, a browser extension, or external model APIs.
 before `--` to set a different positive-integer timeout for that command. Timed-out commands
 preserve captured output so far, are marked as failed command evidence, and do not count as
 successful validation.
+
+`tracepack status` shows whether an active session exists, what commands have been captured, and
+whether the active-session pointer is stale. `tracepack clean` removes only
+`.tracepack/active-session.json`; it does not delete completed bundles or session files. Use
+`--force` for non-interactive recovery.
 
 `tracepack report <bundle-dir>` defaults to the original HTML behavior and regenerates
 `report.html`. Use `--format markdown` for a PR-friendly Markdown report, `--format json` for a

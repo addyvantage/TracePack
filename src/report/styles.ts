@@ -56,6 +56,10 @@ p { margin: 8px 0; }
   border-radius: 8px;
 }
 .panel { padding: 14px; }
+.callout {
+  border-color: var(--warn);
+  margin-top: 12px;
+}
 .label {
   display: inline-flex;
   align-items: center;

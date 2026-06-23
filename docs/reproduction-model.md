@@ -10,6 +10,10 @@ Review every command before rerunning it. TracePack only knows what it observed 
 local evidence bundle, including captured stdout and stderr so far, but it is failed command
 evidence and not successful validation.
 
+`tracepack status` reads stored session data to show the active run, captured commands, and stale
+pointer diagnostics. It does not recapture the current Git state. `tracepack clean` removes only the
+active-session pointer and leaves `.tracepack/<run-id>/` session and bundle artifacts in place.
+
 The manifest intentionally omits full repository contents and full raw diffs by default. A reviewer
 should use the local repository, CI, and human review alongside the TracePack bundle.
 

@@ -11,6 +11,11 @@ type ToolCheck = {
   note?: string;
 };
 
+export type TracepackGitIgnoreCheck = {
+  state: "yes" | "no" | "unavailable";
+  reason?: string;
+};
+
 export function registerDoctor(program: Command): void {
   program
     .command("doctor")
@@ -22,6 +27,7 @@ export function registerDoctor(program: Command): void {
         checkTool("pnpm", ["--version"])
       ]);
       const repo = await checkGitRepository();
+      const tracepackIgnored = await checkTracepackIgnoredByGit(process.cwd());
 
       console.log("TracePack doctor");
       console.log(`Node: ${process.version}`);
@@ -33,6 +39,13 @@ export function registerDoctor(program: Command): void {
         );
       }
       console.log(`Git repository: ${repo}`);
+      console.log(`.tracepack ignored by Git: ${tracepackIgnored.state}`);
+      if (tracepackIgnored.state === "no") {
+        console.log("Recommendation: add `.tracepack/` to .gitignore before sharing receipts.");
+      }
+      if (tracepackIgnored.state === "unavailable" && tracepackIgnored.reason) {
+        console.log(`.tracepack ignore check: ${tracepackIgnored.reason}`);
+      }
       console.log(
         "Safe configuration: doctor does not read .env files, credentials, or browser profiles."
       );
@@ -66,5 +79,37 @@ async function checkGitRepository(): Promise<string> {
     return result.stdout.trim() === "true" ? "observed" : "not observed";
   } catch {
     return "not observed";
+  }
+}
+
+export async function checkTracepackIgnoredByGit(cwd: string): Promise<TracepackGitIgnoreCheck> {
+  try {
+    const inside = await execFileAsync("git", ["rev-parse", "--is-inside-work-tree"], {
+      cwd,
+      encoding: "utf8",
+      timeout: 10_000,
+      windowsHide: true
+    });
+    if (inside.stdout.trim() !== "true") {
+      return { state: "unavailable", reason: "not inside a Git work tree" };
+    }
+  } catch {
+    return { state: "unavailable", reason: "not inside a Git work tree" };
+  }
+
+  try {
+    await execFileAsync("git", ["check-ignore", "-q", ".tracepack/"], {
+      cwd,
+      encoding: "utf8",
+      timeout: 10_000,
+      windowsHide: true
+    });
+    return { state: "yes" };
+  } catch (error) {
+    const failure = error as { code?: number | string };
+    if (failure.code === 1) {
+      return { state: "no" };
+    }
+    return { state: "unavailable", reason: "git check-ignore failed" };
   }
 }

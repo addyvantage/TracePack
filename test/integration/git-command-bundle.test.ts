@@ -4,12 +4,21 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import { checkTracepackIgnoredByGit } from "../../src/commands/doctor.js";
+import { formatStatusInspection } from "../../src/commands/status.js";
 import { captureGitEvidence, captureIgnoredFilesObservation } from "../../src/core/git.js";
 import { runAndCaptureCommand } from "../../src/core/commands.js";
-import { finishSession, runCommandInSession, startSession } from "../../src/core/session.js";
+import {
+  cleanActiveSessionPointer,
+  finishSession,
+  inspectActiveSession,
+  runCommandInSession,
+  startSession
+} from "../../src/core/session.js";
 import { validateManifest } from "../../src/core/manifest.js";
 import { regenerateReport } from "../../src/core/bundle.js";
 import { createRedactionReport } from "../../src/core/redaction.js";
+import { activeSessionPath, runDirectory } from "../../src/core/paths.js";
 
 const execFileAsync = promisify(execFile);
 const tempRoots: string[] = [];
@@ -108,6 +117,87 @@ describe("integration", () => {
     );
     expect(manifest.commands).toHaveLength(1);
     expect(manifest.schemaVersion).toBe("tracepack.manifest.v0.4");
+  });
+
+  it("reports no active session through session inspection and status output", async () => {
+    const repo = await createFixtureRepo();
+    const inspection = await inspectActiveSession(repo);
+
+    expect(inspection.state).toBe("none");
+    expect(formatStatusInspection(inspection, repo)).toContain("No active TracePack session.");
+  });
+
+  it("reports an active session with captured commands in status output", async () => {
+    const repo = await createFixtureRepo();
+    await startSession(repo, "status-demo");
+    await runCommandInSession(repo, [process.execPath, "-e", "console.log('status-ok')"]);
+
+    const inspection = await inspectActiveSession(repo);
+    expect(inspection.state).toBe("active");
+    if (inspection.state !== "active") {
+      throw new Error("Expected active session");
+    }
+    expect(inspection.session.commands).toHaveLength(1);
+
+    const output = formatStatusInspection(inspection, repo);
+    expect(output).toContain("TracePack active session");
+    expect(output).toContain("Label: status-demo");
+    expect(output).toContain("Commands captured: 1");
+    expect(output).toContain("cmd-001");
+    expect(output).toContain("classification: unknown");
+    expect(output).toContain("evidence: observed");
+  });
+
+  it("explains a stale active-session pointer", async () => {
+    const repo = await createFixtureRepo();
+    await mkdir(path.dirname(activeSessionPath(repo)), { recursive: true });
+    await writeFile(activeSessionPath(repo), JSON.stringify({ runId: "missing-run" }), "utf8");
+
+    const inspection = await inspectActiveSession(repo);
+    expect(inspection.state).toBe("stale");
+    expect(formatStatusInspection(inspection, repo)).toContain(
+      "TracePack active-session pointer is stale or unreadable."
+    );
+    expect(formatStatusInspection(inspection, repo)).toContain("Run `tracepack clean`");
+  });
+
+  it("cleaning with no active session is a no-op", async () => {
+    const repo = await createFixtureRepo();
+    const cleaned = await cleanActiveSessionPointer(repo);
+
+    expect(cleaned.state).toBe("none");
+    await expect(readFile(activeSessionPath(repo), "utf8")).rejects.toBeTruthy();
+  });
+
+  it("cleaning removes only the active-session pointer and keeps session data", async () => {
+    const repo = await createFixtureRepo();
+    const session = await startSession(repo, "clean-demo");
+    const sessionPath = path.join(runDirectory(repo, session.runId), "session.json");
+
+    const cleaned = await cleanActiveSessionPointer(repo);
+
+    expect(cleaned.state).toBe("active");
+    await expect(readFile(activeSessionPath(repo), "utf8")).rejects.toBeTruthy();
+    await expect(readFile(sessionPath, "utf8")).resolves.toContain(session.runId);
+  });
+
+  it("cleaning removes a stale active-session pointer", async () => {
+    const repo = await createFixtureRepo();
+    await mkdir(path.dirname(activeSessionPath(repo)), { recursive: true });
+    await writeFile(activeSessionPath(repo), JSON.stringify({ runId: "missing-run" }), "utf8");
+
+    const cleaned = await cleanActiveSessionPointer(repo);
+
+    expect(cleaned.state).toBe("stale");
+    await expect(readFile(activeSessionPath(repo), "utf8")).rejects.toBeTruthy();
+  });
+
+  it("checks whether .tracepack is ignored by Git", async () => {
+    const ignoredRepo = await createFixtureRepo();
+    await expect(checkTracepackIgnoredByGit(ignoredRepo)).resolves.toEqual({ state: "yes" });
+
+    const unignoredRepo = await createFixtureRepo({ gitignore: "node_modules/\n" });
+    await expect(checkTracepackIgnoredByGit(unignoredRepo)).resolves.toEqual({ state: "no" });
   });
 
   it("reports validated_final_state when validation runs after the final change", async () => {
@@ -421,12 +511,16 @@ describe("integration", () => {
   });
 });
 
-async function createFixtureRepo(): Promise<string> {
+async function createFixtureRepo(options: { gitignore?: string } = {}): Promise<string> {
   const repo = await mkdtemp(path.join(os.tmpdir(), "TracePack-test-"));
   tempRoots.push(repo);
   await mkdir(path.join(repo, "src"), { recursive: true });
   await mkdir(path.join(repo, "test"), { recursive: true });
-  await writeFile(path.join(repo, ".gitignore"), ".tracepack/\nnode_modules/\n", "utf8");
+  await writeFile(
+    path.join(repo, ".gitignore"),
+    options.gitignore ?? ".tracepack/\nnode_modules/\n",
+    "utf8"
+  );
   await writeFile(
     path.join(repo, "package.json"),
     JSON.stringify(

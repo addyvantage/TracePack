@@ -32,6 +32,8 @@ export function renderHtmlReport(
     <p>${statusLabel(warnings.length === 0 ? "observed" : "needs_human_review")} TracePack reports observed local evidence. It does not prove correctness, security, approval, or merge readiness.</p>
   </header>
 
+  ${topSummarySection(manifest)}
+
   <section>
     <h2>Run Summary</h2>
     <div class="grid">
@@ -125,6 +127,62 @@ function metric(label: string, value: string): string {
   return `<div class="panel"><strong>${escapeHtml(label)}</strong><p>${escapeHtml(value)}</p></div>`;
 }
 
+function topSummarySection(manifest: TracePackManifest): string {
+  const receiptSummary = topReceiptSummary(manifest);
+  const commandSummary = topCommandSummary(manifest);
+  const topWarning = manifest.warnings[0];
+  return `<section class="top-summary">
+    <h2>Evidence Summary</h2>
+    <div class="grid">
+      ${metric("Receipt Verdict", receiptSummary.verdict)}
+      ${metric("Confidence", receiptSummary.confidence)}
+      ${metric("Commands", `${commandSummary.total} total / ${commandSummary.validation} validation / ${commandSummary.failed} failed`)}
+      ${metric("Warnings", `${manifest.warnings.length}`)}
+      ${metric("Changed Files", `${manifest.git.after.changedFiles.length}`)}
+      ${metric("Final Fingerprint", receiptSummary.finalFingerprint)}
+    </div>
+    ${
+      topWarning
+        ? `<div class="panel callout"><p><strong>Needs human review:</strong> ${escapeHtml(topWarning.title)}</p></div>`
+        : `<p>${statusLabel("observed")} No deterministic warning was triggered.</p>`
+    }
+    <p class="muted">TracePack records observed local evidence. It does not prove correctness, security, approval, or merge readiness.</p>
+  </section>`;
+}
+
+function topReceiptSummary(manifest: TracePackManifest): {
+  verdict: string;
+  confidence: string;
+  finalFingerprint: string;
+} {
+  if (!("receipt" in manifest)) {
+    return {
+      verdict: "inconclusive",
+      confidence: "unavailable",
+      finalFingerprint: "not available"
+    };
+  }
+
+  return {
+    verdict: manifest.receipt.verdict,
+    confidence: manifest.receipt.observationConfidence ?? "unavailable",
+    finalFingerprint: manifest.receipt.final.fingerprint?.short ?? "not available"
+  };
+}
+
+function topCommandSummary(manifest: TracePackManifest): {
+  total: number;
+  validation: number;
+  failed: number;
+} {
+  return {
+    total: manifest.commands.length,
+    validation: manifest.commands.filter((command) => command.classification === "validation")
+      .length,
+    failed: manifest.commands.filter(commandFailed).length
+  };
+}
+
 function changedFilesTable(manifest: TracePackManifest): string {
   if (manifest.git.after.changedFiles.length === 0) {
     return `<p class="muted">No changed files were observed by Git.</p>`;
@@ -154,17 +212,18 @@ function commandsTable(commands: TracePackManifest["commands"]): string {
     return `<p class="muted">No commands were captured.</p>`;
   }
   return `<table>
-  <thead><tr><th>Command</th><th>Exit</th><th>Duration</th><th>Classification</th><th>Evidence</th><th>Pre-state</th><th>Output</th></tr></thead>
+  <thead><tr><th>Command</th><th>Exit / Signal</th><th>Duration</th><th>Classification</th><th>Evidence</th><th>Pre-state</th><th>Error</th><th>Output</th></tr></thead>
   <tbody>
     ${commands
       .map(
         (command) => `<tr>
       <td><code>${escapeHtml(command.argv.join(" "))}</code></td>
-      <td>${command.exitCode ?? "not started"}</td>
+      <td>${escapeHtml(commandExitText(command))}</td>
       <td>${command.durationMs} ms</td>
       <td>${escapeHtml(command.classification)}</td>
       <td>${statusLabel(command.evidence)}</td>
       <td>${command.gitBefore?.fingerprint ? `<code>${escapeHtml(command.gitBefore.fingerprint.short)}</code>` : "Not captured"}</td>
+      <td>${command.error ? escapeHtml(command.error) : ""}</td>
       <td>${command.stdout.truncated || command.stderr.truncated ? "Truncated" : "Captured"}${command.redaction.applied ? ", redacted" : ""}</td>
     </tr>`
       )
@@ -346,6 +405,23 @@ function statusLabel(value: string): string {
           ? "good"
           : "neutral";
   return `<span class="label ${className}">${escapeHtml(value.replaceAll("_", " "))}</span>`;
+}
+
+function commandExitText(command: TracePackManifest["commands"][number]): string {
+  if (command.exitCode !== null) {
+    return `exit ${command.exitCode}`;
+  }
+  if (command.signal) {
+    return `signal ${command.signal}`;
+  }
+  return "not available";
+}
+
+function commandFailed(command: TracePackManifest["commands"][number]): boolean {
+  return (
+    command.exitCode !== 0 &&
+    (command.exitCode !== null || !!command.error || command.signal !== null)
+  );
 }
 
 function escapeHtml(value: string): string {

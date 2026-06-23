@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { runAndCaptureCommand } from "./commands.js";
 import { writeBundle, readJson, writeJson } from "./bundle.js";
@@ -38,6 +38,24 @@ export type SessionState = {
 type ActiveSessionPointer = {
   runId: string;
 };
+
+export type ActiveSessionInspection =
+  | {
+      state: "none";
+      pointerPath: string;
+    }
+  | {
+      state: "active";
+      pointerPath: string;
+      runId: string;
+      session: SessionState;
+    }
+  | {
+      state: "stale";
+      pointerPath: string;
+      runId?: string;
+      reason: string;
+    };
 
 export type RunCommandInSessionOptions = {
   timeoutSeconds?: number;
@@ -85,6 +103,75 @@ export async function loadActiveSession(cwd: string): Promise<SessionState | und
   } catch {
     return undefined;
   }
+}
+
+export async function inspectActiveSession(cwd: string): Promise<ActiveSessionInspection> {
+  const pointerPath = activeSessionPath(cwd);
+  let pointerValue: unknown;
+
+  try {
+    pointerValue = JSON.parse(await readFile(pointerPath, "utf8")) as unknown;
+  } catch (error) {
+    if (isFileNotFound(error)) {
+      return { state: "none", pointerPath };
+    }
+    return {
+      state: "stale",
+      pointerPath,
+      reason: `Active-session pointer could not be read or parsed: ${errorMessage(error)}`
+    };
+  }
+
+  if (!isActiveSessionPointer(pointerValue)) {
+    return {
+      state: "stale",
+      pointerPath,
+      reason: "Active-session pointer did not contain a valid runId."
+    };
+  }
+
+  const sessionPath = path.join(runDirectory(cwd, pointerValue.runId), "session.json");
+  let sessionValue: unknown;
+  try {
+    sessionValue = JSON.parse(await readFile(sessionPath, "utf8")) as unknown;
+  } catch (error) {
+    return {
+      state: "stale",
+      pointerPath,
+      runId: pointerValue.runId,
+      reason: isFileNotFound(error)
+        ? `Session file was not found: ${path.relative(cwd, sessionPath)}`
+        : `Session file could not be read or parsed: ${errorMessage(error)}`
+    };
+  }
+
+  if (!isSessionState(sessionValue)) {
+    return {
+      state: "stale",
+      pointerPath,
+      runId: pointerValue.runId,
+      reason: "Session file did not contain a valid TracePack session."
+    };
+  }
+
+  if (sessionValue.runId !== pointerValue.runId) {
+    return {
+      state: "stale",
+      pointerPath,
+      runId: pointerValue.runId,
+      reason: `Active-session pointer runId did not match session runId ${sessionValue.runId}.`
+    };
+  }
+
+  return { state: "active", pointerPath, runId: pointerValue.runId, session: sessionValue };
+}
+
+export async function cleanActiveSessionPointer(cwd: string): Promise<ActiveSessionInspection> {
+  const inspection = await inspectActiveSession(cwd);
+  if (inspection.state !== "none") {
+    await rm(inspection.pointerPath, { force: true });
+  }
+  return inspection;
 }
 
 export async function saveSession(session: SessionState): Promise<void> {
@@ -225,7 +312,7 @@ async function saveSessionWithoutActivePointer(session: SessionState): Promise<v
   await writeJson(path.join(runDirectory(session.cwd, session.runId), "session.json"), session);
 }
 
-function quoteCommand(argv: string[]): string {
+export function quoteCommand(argv: string[]): string {
   return argv.map((arg) => (/[ \t"'`]/.test(arg) ? JSON.stringify(arg) : arg)).join(" ");
 }
 
@@ -235,4 +322,45 @@ export function localBundleDir(cwd: string, runId: string): string {
 
 export function localTracePackDir(cwd: string): string {
   return tracepackDir(cwd);
+}
+
+function isActiveSessionPointer(value: unknown): value is ActiveSessionPointer {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "runId" in value &&
+    typeof value.runId === "string" &&
+    value.runId.length > 0
+  );
+}
+
+function isSessionState(value: unknown): value is SessionState {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const candidate = value as Partial<SessionState>;
+  return (
+    candidate.schemaVersion === SESSION_SCHEMA_VERSION &&
+    typeof candidate.runId === "string" &&
+    typeof candidate.startedAt === "string" &&
+    typeof candidate.cwd === "string" &&
+    !!candidate.initialGit &&
+    typeof candidate.initialGit === "object" &&
+    !!candidate.initialState &&
+    typeof candidate.initialState === "object" &&
+    Array.isArray(candidate.commands)
+  );
+}
+
+function isFileNotFound(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

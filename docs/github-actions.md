@@ -44,6 +44,9 @@ or `--allow-warnings` only when that matches your local review policy.
 Artifacts are stored by GitHub Actions. TracePack itself does not upload to external storage outside
 the workflow steps you configure.
 
+For local development, add `.tracepack/` to `.gitignore`. `tracepack doctor` reports whether the
+path appears to be ignored by Git so local bundles are less likely to be committed accidentally.
+
 Reviewers should download or open the uploaded bundle and inspect `report.html`, `report.md`,
 `summary.json`, and `assertion.json`, especially the Final-State Validation Receipt verdict and
 overall confidence line. A passing assertion is still a local evidence check only; it does not prove
