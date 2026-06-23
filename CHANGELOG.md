@@ -4,6 +4,12 @@
 
 - Added `tracepack assert <bundle-dir>` for local CI policy checks over manifest-derived receipt
   evidence.
+- Added a default 300-second command timeout for `tracepack run` with `--timeout <seconds>` for
+  positive-integer overrides.
+- Fixed deterministic test rename-away warning detection so `TP003` fires when a test-looking path
+  is renamed to a non-test-looking path.
+- Added a repository CI workflow that runs the existing local verification script on push and pull
+  request.
 - Added strict default assertion policy requiring `validated_final_state`, `complete` receipt
   confidence, and zero warnings.
 - Added `tracepack.assertion.v0.1` JSON output through `--json` and `--summary-out <path>` for CI

@@ -89,6 +89,27 @@ describe("report rendering", () => {
     expect(JSON.stringify(summary)).not.toContain("RAW_OUTPUT_SHOULD_NOT_APPEAR");
   });
 
+  it("counts commands with errors and no exit code as failed in json summaries", () => {
+    const manifest = validateManifest({
+      ...sampleNoValidationReceiptManifest(),
+      commands: [
+        {
+          ...sampleNoValidationReceiptManifest().commands[0],
+          exitCode: null,
+          error: "Command timed out after 1 seconds.",
+          evidence: "command_failed"
+        }
+      ]
+    });
+    const summary = renderSummaryJson(
+      manifest,
+      createRedactionReport({ runId: manifest.runId, outputs: [], excludedEvidence: [] })
+    );
+
+    expect(summary.commands.succeeded).toBe(0);
+    expect(summary.commands.failed).toBe(1);
+  });
+
   it("renders conservative json summary fields for legacy manifests", () => {
     const manifest = validateManifest(sampleManifest());
     const summary = renderSummaryJson(

@@ -77,7 +77,7 @@ intent, or that validation did not happen elsewhere.
 
 ```bash
 tracepack start [--label <name>]
-tracepack run -- <command...>
+tracepack run [--timeout <seconds>] -- <command...>
 tracepack finish [--label <name>]
 tracepack report <bundle-dir> [--format html|markdown|json|all] [--out <path>]
 tracepack assert <bundle-dir> [--require-verdict <verdict>] [--require-confidence <confidence>] [--allow-warnings] [--json] [--summary-out <path>] [--quiet]
@@ -86,6 +86,11 @@ tracepack doctor
 
 The CLI uses local Git and user-approved commands. It does not require a remote repository,
 accounts, auth, a database, Docker, a browser extension, or external model APIs.
+
+`tracepack run` stops the child command after 300 seconds by default. Use `--timeout <seconds>`
+before `--` to set a different positive-integer timeout for that command. Timed-out commands
+preserve captured output so far, are marked as failed command evidence, and do not count as
+successful validation.
 
 `tracepack report <bundle-dir>` defaults to the original HTML behavior and regenerates
 `report.html`. Use `--format markdown` for a PR-friendly Markdown report, `--format json` for a

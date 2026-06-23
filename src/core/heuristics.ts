@@ -1,4 +1,5 @@
 import { commandHasSuspiciousTestFlag } from "./classify.js";
+import { looksLikeTestPath } from "./git.js";
 import type { CommandEvidence, FinalStateReceipt, GitEvidence, WarningEntry } from "./manifest.js";
 
 export function runHeuristics(params: {
@@ -77,7 +78,8 @@ function suspiciousTestEditWarnings(
       !!file.previousPath &&
       file.previousPath !== file.path &&
       file.status.includes("R") &&
-      !file.looksLikeTest
+      looksLikeTestPath(file.previousPath) &&
+      !looksLikeTestPath(file.path)
   );
   const suspiciousCommandFlags = commands
     .map((command) => ({ command, trigger: commandHasSuspiciousTestFlag(command.argv) }))

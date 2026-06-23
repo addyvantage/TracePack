@@ -39,6 +39,10 @@ type ActiveSessionPointer = {
   runId: string;
 };
 
+export type RunCommandInSessionOptions = {
+  timeoutSeconds?: number;
+};
+
 export async function startSession(cwd: string, label?: string): Promise<SessionState> {
   const existing = await loadActiveSession(cwd);
   if (existing) {
@@ -92,7 +96,8 @@ export async function saveSession(session: SessionState): Promise<void> {
 
 export async function runCommandInSession(
   cwd: string,
-  argv: string[]
+  argv: string[],
+  options: RunCommandInSessionOptions = {}
 ): Promise<{
   session: SessionState;
   command: CommandEvidence;
@@ -104,7 +109,8 @@ export async function runCommandInSession(
   const command = await runAndCaptureCommand(
     argv,
     cwd,
-    `cmd-${String(session.commands.length + 1).padStart(3, "0")}`
+    `cmd-${String(session.commands.length + 1).padStart(3, "0")}`,
+    { timeoutSeconds: options.timeoutSeconds }
   );
   command.gitBefore = gitBefore;
   command.gitAfter = await captureGitStateSnapshot(cwd);

@@ -116,7 +116,9 @@ function commandCounts(manifest: TracePackManifest): TracePackSummaryJson["comma
     unknown: manifest.commands.filter((command) => command.classification === "unknown").length,
     succeeded: manifest.commands.filter((command) => command.exitCode === 0).length,
     failed: manifest.commands.filter(
-      (command) => command.exitCode !== null && command.exitCode !== 0
+      (command) =>
+        command.exitCode !== 0 &&
+        (command.exitCode !== null || !!command.error || command.signal !== null)
     ).length
   };
 }

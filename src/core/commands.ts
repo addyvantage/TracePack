@@ -1,9 +1,13 @@
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { classifyCommand, evidenceForCommand } from "./classify.js";
 import type { CommandEvidence } from "./manifest.js";
 import { combineRedactionSummaries, summarizeOutput } from "./redaction.js";
 
 const STORED_OUTPUT_BYTES = 48_000;
+const COMMAND_TIMEOUT_GRACE_MS = 1_000;
+
+export const DEFAULT_COMMAND_TIMEOUT_SECONDS = 300;
 
 type CaptureState = {
   chunks: Buffer[];
@@ -11,15 +15,23 @@ type CaptureState = {
   totalBytes: number;
 };
 
+export type RunAndCaptureOptions = {
+  timeoutSeconds?: number;
+};
+
 export async function runAndCaptureCommand(
   argv: string[],
   cwd: string,
-  id: string
+  id: string,
+  options: RunAndCaptureOptions = {}
 ): Promise<CommandEvidence> {
   if (argv.length === 0) {
     throw new Error("tracepack run requires a command after --.");
   }
 
+  const timeoutSeconds = validateTimeoutSeconds(
+    options.timeoutSeconds ?? DEFAULT_COMMAND_TIMEOUT_SECONDS
+  );
   const started = new Date();
   const stdout = createCaptureState();
   const stderr = createCaptureState();
@@ -35,6 +47,24 @@ export async function runAndCaptureCommand(
     signal: string | null;
     error?: string;
   }>((resolve) => {
+    let settled = false;
+    let timedOut = false;
+    const timers: { timeout?: NodeJS.Timeout; forceKill?: NodeJS.Timeout } = {};
+
+    const finish = (result: { exitCode: number | null; signal: string | null; error?: string }) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timers.timeout) {
+        clearTimeout(timers.timeout);
+      }
+      if (timers.forceKill) {
+        clearTimeout(timers.forceKill);
+      }
+      resolve(result);
+    };
+
     const child = spawn(spawnedCommand, spawnedArgs, {
       cwd,
       env: process.env,
@@ -42,6 +72,18 @@ export async function runAndCaptureCommand(
       stdio: ["inherit", "pipe", "pipe"],
       windowsHide: true
     });
+
+    timers.timeout = setTimeout(() => {
+      timedOut = true;
+      killChild(child, "SIGTERM");
+      timers.forceKill = setTimeout(() => {
+        if (!settled) {
+          killChild(child, "SIGKILL");
+        }
+      }, COMMAND_TIMEOUT_GRACE_MS);
+      timers.forceKill.unref();
+    }, timeoutSeconds * 1000);
+    timers.timeout.unref();
 
     child.stdout.on("data", (chunk: Buffer) => {
       process.stdout.write(chunk);
@@ -54,11 +96,15 @@ export async function runAndCaptureCommand(
     });
 
     child.on("error", (error) => {
-      resolve({ exitCode: null, signal: null, error: error.message });
+      finish({ exitCode: null, signal: null, error: error.message });
     });
 
     child.on("close", (exitCode, signal) => {
-      resolve({ exitCode, signal });
+      finish({
+        exitCode,
+        signal,
+        ...(timedOut ? { error: `Command timed out after ${timeoutSeconds} seconds.` } : {})
+      });
     });
   });
 
@@ -79,9 +125,28 @@ export async function runAndCaptureCommand(
     stdout: stdoutSummary,
     stderr: stderrSummary,
     classification,
-    evidence: evidenceForCommand(classification, result.exitCode),
+    evidence: evidenceForCommand(
+      classification,
+      result.exitCode,
+      !!result.error || result.signal !== null
+    ),
     redaction: combineRedactionSummaries([stdoutSummary, stderrSummary])
   };
+}
+
+export function validateTimeoutSeconds(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new Error("TracePack command timeout must be a positive integer number of seconds.");
+  }
+  return value;
+}
+
+function killChild(child: ChildProcess, signal: NodeJS.Signals): void {
+  try {
+    child.kill(signal);
+  } catch {
+    // The process may have already exited, or the platform may reject the signal name.
+  }
 }
 
 function createCaptureState(): CaptureState {

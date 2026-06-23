@@ -76,6 +76,27 @@ describe("integration", () => {
     expect(evidence.stderr.text).toContain("failed");
   });
 
+  it("times out commands without losing captured output", async () => {
+    const evidence = await runAndCaptureCommand(
+      [
+        process.execPath,
+        "-e",
+        "console.log('stdout-before-timeout'); console.error('stderr-before-timeout'); setTimeout(() => {}, 5000);"
+      ],
+      process.cwd(),
+      "cmd-timeout",
+      { timeoutSeconds: 1 }
+    );
+
+    expect(evidence.exitCode).not.toBe(0);
+    expect(evidence.error).toContain("Command timed out after 1 seconds.");
+    expect(evidence.evidence).toBe("command_failed");
+    expect(evidence.evidence).not.toBe("successful_validation");
+    expect(evidence.stdout.text).toContain("stdout-before-timeout");
+    expect(evidence.stderr.text).toContain("stderr-before-timeout");
+    expect(evidence.durationMs).toBeLessThan(4_000);
+  });
+
   it("creates a one-command bundle", async () => {
     const repo = await createFixtureRepo();
     const result = await runCommandInSession(repo, [process.execPath, "-e", "console.log('ok')"]);

@@ -80,15 +80,18 @@ export function classifyCommand(argv: string[]): CommandClassification {
 
 export function evidenceForCommand(
   classification: CommandClassification,
-  exitCode: number | null
+  exitCode: number | null,
+  failedWithoutExitCode = false
 ): EvidenceLabel {
   if (classification === "validation") {
-    return exitCode === 0 ? "successful_validation" : "failed_validation";
+    return exitCode === 0 && !failedWithoutExitCode ? "successful_validation" : "failed_validation";
   }
   if (classification === "possible_validation") {
-    return exitCode === 0 ? "possible_validation_observed" : "command_failed";
+    return exitCode === 0 && !failedWithoutExitCode
+      ? "possible_validation_observed"
+      : "command_failed";
   }
-  if (exitCode !== 0 && exitCode !== null) {
+  if (failedWithoutExitCode || (exitCode !== 0 && exitCode !== null)) {
     return "command_failed";
   }
   return "observed";
