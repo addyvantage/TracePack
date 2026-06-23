@@ -354,6 +354,50 @@ describe("integration", () => {
     expect(html).toContain("validated final state");
     expect(html).toContain("Ignored-Path Observation");
   });
+
+  it("regenerates markdown and json report exports", async () => {
+    const bundleDir = await mkdtemp(path.join(os.tmpdir(), "TracePack-reports-"));
+    tempRoots.push(bundleDir);
+    const manifest = v02Manifest();
+    await writeFile(
+      path.join(bundleDir, "manifest.json"),
+      JSON.stringify(manifest, null, 2),
+      "utf8"
+    );
+    await writeFile(
+      path.join(bundleDir, "redaction-report.json"),
+      JSON.stringify(
+        createRedactionReport({ runId: manifest.runId, outputs: [], excludedEvidence: [] }),
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const outputs = await regenerateReport(bundleDir, { format: "all" });
+    expect(outputs.map((output) => path.basename(output)).sort()).toEqual([
+      "report.html",
+      "report.md",
+      "summary.json"
+    ]);
+
+    const markdown = await readFile(path.join(bundleDir, "report.md"), "utf8");
+    const summary = JSON.parse(await readFile(path.join(bundleDir, "summary.json"), "utf8")) as {
+      schemaVersion?: string;
+      receipt?: { verdict?: string };
+    };
+
+    expect(markdown).toContain("Final-State Validation Receipt");
+    expect(markdown).toContain("TracePack does not prove correctness");
+    expect(summary.schemaVersion).toBe("tracepack.summary.v0.1");
+    expect(summary.receipt?.verdict).toBe("validated_final_state");
+
+    const customPath = path.join(bundleDir, "custom-report.md");
+    await expect(
+      regenerateReport(bundleDir, { format: "markdown", out: customPath })
+    ).resolves.toEqual([customPath]);
+    await expect(readFile(customPath, "utf8")).resolves.toContain("# TracePack Evidence Report");
+  });
 });
 
 async function createFixtureRepo(): Promise<string> {

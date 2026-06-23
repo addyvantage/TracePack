@@ -30,6 +30,7 @@ jobs:
         run: node dist/cli.js start --label "github-actions-${{ github.run_id }}"
 
       - name: TracePack run validation
+        continue-on-error: true
         run: node dist/cli.js run -- npm test
 
       - name: TracePack finish
@@ -43,8 +44,31 @@ jobs:
         run: |
           bundle="$(ls -td .tracepack/* | head -1)"
           echo "path=$bundle" >> "$GITHUB_OUTPUT"
-          echo "TracePack bundle: $bundle" >> "$GITHUB_STEP_SUMMARY"
-          echo "TracePack reports observed evidence only. It does not approve this PR." >> "$GITHUB_STEP_SUMMARY"
+          echo "TRACEPACK_BUNDLE=$bundle" >> "$GITHUB_ENV"
+
+      - name: TracePack report exports
+        if: always()
+        run: node dist/cli.js report "$TRACEPACK_BUNDLE" --format all
+
+      - name: TracePack policy assertion
+        if: always()
+        run: >-
+          node dist/cli.js assert "$TRACEPACK_BUNDLE" --require-verdict validated_final_state
+          --require-confidence complete --summary-out "$TRACEPACK_BUNDLE/assertion.json"
+
+      - name: TracePack job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### TracePack evidence"
+            echo ""
+            echo "Uploaded artifact: TracePack-evidence-${{ github.run_id }}"
+            echo ""
+            echo "The bundle contains manifest.json, redaction-report.json, report.html, report.md, summary.json, and assertion.json when assertion ran."
+            echo ""
+            echo "TracePack assertion checks observed evidence only; it does not prove correctness, security, approval, or merge readiness."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload TracePack bundle
         if: always()

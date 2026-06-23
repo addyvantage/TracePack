@@ -46,6 +46,8 @@ node dist/cli.js run -- npm test
   test-related file changes.
 - A local `.tracepack/<run-id>/` bundle with `manifest.json`, `redaction-report.json`, and
   `report.html`.
+- Optional local report exports for PR/CI consumption: Markdown (`report.md`) and stable summary
+  JSON (`summary.json`).
 
 ## What TracePack Does Not Capture
 
@@ -77,12 +79,28 @@ intent, or that validation did not happen elsewhere.
 tracepack start [--label <name>]
 tracepack run -- <command...>
 tracepack finish [--label <name>]
-tracepack report <bundle-dir>
+tracepack report <bundle-dir> [--format html|markdown|json|all] [--out <path>]
+tracepack assert <bundle-dir> [--require-verdict <verdict>] [--require-confidence <confidence>] [--allow-warnings] [--json] [--summary-out <path>] [--quiet]
 tracepack doctor
 ```
 
 The CLI uses local Git and user-approved commands. It does not require a remote repository,
 accounts, auth, a database, Docker, a browser extension, or external model APIs.
+
+`tracepack report <bundle-dir>` defaults to the original HTML behavior and regenerates
+`report.html`. Use `--format markdown` for a PR-friendly Markdown report, `--format json` for a
+CI-friendly `tracepack.summary.v0.1` JSON summary, or `--format all` to write `report.html`,
+`report.md`, and `summary.json` in the bundle directory. `--out <path>` is available for single
+formats only.
+
+`tracepack assert <bundle-dir>` evaluates the bundle's manifest against an explicit local policy and
+exits non-zero when it fails. By default it requires `validated_final_state`, `complete` receipt
+confidence, and zero warnings. Use `--require-verdict` with a comma-separated or repeated set of
+accepted receipt verdicts, `--require-confidence complete|partial|unavailable`, `--allow-warnings`
+when warnings should not fail the policy, `--json` for machine-readable output, and
+`--summary-out <path>` to write `tracepack.assertion.v0.1` JSON for CI artifacts. A passing
+assertion means only that the observed evidence matched the configured policy; it does not prove
+correctness, security, approval, policy compliance, or merge readiness.
 
 ## Demo
 

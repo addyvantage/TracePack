@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderHtmlReport } from "../../src/report/renderHtml.js";
+import { renderMarkdownReport } from "../../src/report/renderMarkdown.js";
+import { renderSummaryJson, SUMMARY_SCHEMA_VERSION } from "../../src/report/renderSummaryJson.js";
 import { createRedactionReport } from "../../src/core/redaction.js";
 import { validateManifest, type TracePackManifest } from "../../src/core/manifest.js";
 
@@ -28,6 +30,79 @@ describe("report rendering", () => {
 
     expect(html).toContain('<span class="label warn">no validation observed</span>');
     expect(html).not.toContain('<span class="label good">no validation observed</span>');
+  });
+
+  it("renders a concise markdown report with receipt and limitation sections", () => {
+    const manifest = validateManifest(sampleNoValidationReceiptManifest());
+    const markdown = renderMarkdownReport(
+      manifest,
+      createRedactionReport({ runId: manifest.runId, outputs: [], excludedEvidence: [] })
+    );
+
+    expect(markdown).toContain("# TracePack Evidence Report");
+    expect(markdown).toContain("## Final-State Validation Receipt");
+    expect(markdown).toContain("`no_validation_observed`");
+    expect(markdown).toContain("## Validation Commands");
+    expect(markdown).toContain("## Changed-File Summary");
+    expect(markdown).toContain("## Explicit Limitations");
+    expect(markdown).toContain(
+      "does not prove correctness, security, approval, or merge readiness"
+    );
+  });
+
+  it("renders legacy manifests in markdown without upgrading receipt certainty", () => {
+    const manifest = validateManifest(sampleManifest());
+    const markdown = renderMarkdownReport(
+      manifest,
+      createRedactionReport({ runId: manifest.runId, outputs: [], excludedEvidence: [] })
+    );
+
+    expect(markdown).toContain("Legacy v0.1 manifest");
+    expect(markdown).toContain("`inconclusive`");
+  });
+
+  it("renders a deterministic json summary without raw command output", () => {
+    const manifest = validateManifest(sampleNoValidationReceiptManifest());
+    const summary = renderSummaryJson(
+      manifest,
+      createRedactionReport({ runId: manifest.runId, outputs: [], excludedEvidence: [] })
+    );
+
+    expect(summary.schemaVersion).toBe(SUMMARY_SCHEMA_VERSION);
+    expect(summary.run.id).toBe("no-validation");
+    expect(summary.commands).toEqual(
+      expect.objectContaining({
+        total: 1,
+        unknown: 1,
+        succeeded: 1
+      })
+    );
+    expect(summary.receipt).toEqual(
+      expect.objectContaining({
+        present: true,
+        verdict: "no_validation_observed",
+        observationConfidence: "complete",
+        coveringCommandIds: []
+      })
+    );
+    expect(summary.finalState.changedFileCount).toBe(0);
+    expect(JSON.stringify(summary)).not.toContain("RAW_OUTPUT_SHOULD_NOT_APPEAR");
+  });
+
+  it("renders conservative json summary fields for legacy manifests", () => {
+    const manifest = validateManifest(sampleManifest());
+    const summary = renderSummaryJson(
+      manifest,
+      createRedactionReport({ runId: manifest.runId, outputs: [], excludedEvidence: [] })
+    );
+
+    expect(summary.receipt).toEqual(
+      expect.objectContaining({
+        present: false,
+        verdict: "inconclusive",
+        observationConfidence: "unavailable"
+      })
+    );
   });
 });
 
@@ -120,7 +195,28 @@ function sampleNoValidationReceiptManifest(): TracePackManifest {
       before: git(),
       after: git()
     },
-    commands: [],
+    commands: [
+      {
+        id: "cmd-001",
+        argv: ["node", "-e", "console.log('ok')"],
+        startedAt: "2026-01-01T00:00:00.000Z",
+        endedAt: "2026-01-01T00:00:01.000Z",
+        durationMs: 1000,
+        exitCode: 0,
+        signal: null,
+        stdout: output("RAW_OUTPUT_SHOULD_NOT_APPEAR"),
+        stderr: output(""),
+        classification: "unknown",
+        evidence: "observed",
+        redaction: {
+          applied: false,
+          replacementCount: 0,
+          excludedEvidenceCount: 0,
+          outputTruncated: false,
+          notes: []
+        }
+      }
+    ],
     warnings: [],
     redaction: {
       applied: false,
@@ -151,5 +247,17 @@ function sampleNoValidationReceiptManifest(): TracePackManifest {
       explanation: "No command classified as validation was observed through TracePack.",
       limitations: []
     }
+  };
+}
+
+function output(text: string): TracePackManifest["commands"][number]["stdout"] {
+  return {
+    text,
+    originalBytes: text.length,
+    capturedBytes: text.length,
+    omittedBytes: 0,
+    truncated: false,
+    redacted: false,
+    replacements: []
   };
 }

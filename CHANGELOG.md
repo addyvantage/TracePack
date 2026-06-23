@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.6.0
+
+- Added `tracepack assert <bundle-dir>` for local CI policy checks over manifest-derived receipt
+  evidence.
+- Added strict default assertion policy requiring `validated_final_state`, `complete` receipt
+  confidence, and zero warnings.
+- Added `tracepack.assertion.v0.1` JSON output through `--json` and `--summary-out <path>` for CI
+  artifacts.
+- Updated the GitHub Actions example to generate all report exports, run an explicit assertion, and
+  upload the full local bundle without secrets or PR automation.
+- Kept policy wording scoped to observed evidence only; passing assertions do not prove correctness,
+  security, approval, policy compliance, or merge readiness.
+
+## 0.5.0
+
+- Added `tracepack report --format html|markdown|json|all` while preserving HTML as the default.
+- Added `--out <path>` for single-format report regeneration.
+- Added PR-friendly Markdown reports with receipt, warning, validation, changed-file, redaction,
+  reproduction, and limitation sections.
+- Added deterministic `tracepack.summary.v0.1` JSON summaries for CI parsing without duplicating the
+  full manifest or raw captured output.
+- Kept exports local-first and explicit that TracePack does not prove correctness, security,
+  approval, or merge readiness.
+
 ## 0.4.0
 
 - Added v0.4 manifests and v0.3 receipts with an overall observation gate for final-state

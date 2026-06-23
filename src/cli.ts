@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { TRACEPACK_VERSION } from "./core/manifest.js";
+import { registerAssert } from "./commands/assert.js";
 import { registerDoctor } from "./commands/doctor.js";
 import { registerFinish } from "./commands/finish.js";
 import { registerReport } from "./commands/report.js";
@@ -18,6 +19,7 @@ registerStart(program);
 registerRun(program);
 registerFinish(program);
 registerReport(program);
+registerAssert(program);
 registerDoctor(program);
 
 program.showHelpAfterError();

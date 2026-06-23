@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const TRACEPACK_VERSION = "0.4.0";
+export const TRACEPACK_VERSION = "0.6.0";
 export const MANIFEST_SCHEMA_VERSION_V0_1 = "tracepack.manifest.v0.1";
 export const MANIFEST_SCHEMA_VERSION_V0_2 = "tracepack.manifest.v0.2";
 export const MANIFEST_SCHEMA_VERSION_V0_3 = "tracepack.manifest.v0.3";
