@@ -44,9 +44,12 @@ describe("report rendering", () => {
 
     expect(html).toContain("Evidence Summary");
     expect(html).toContain("Receipt Verdict");
-    expect(html).toContain("no_validation_observed");
+    expect(html).toContain('<span class="label warn">no validation observed</span>');
+    expect(html).toContain("Meaning:");
+    expect(html).toContain("No command classified as validation was observed through TracePack.");
     expect(html).toContain("Confidence");
     expect(html).toContain("complete");
+    expect(html).toContain("Confidence meaning:");
     expect(html).toContain("Needs human review:");
     expect(html).toContain("Validation did not cover final observed state");
     expect(html).toContain(
@@ -62,8 +65,13 @@ describe("report rendering", () => {
     );
 
     expect(markdown).toContain("# TracePack Evidence Report");
+    expect(markdown).toContain("## Evidence Summary");
+    expect(markdown.indexOf("## Evidence Summary")).toBeLessThan(
+      markdown.indexOf("## Run Summary")
+    );
     expect(markdown).toContain("## Final-State Validation Receipt");
     expect(markdown).toContain("`no_validation_observed`");
+    expect(markdown).toContain("| Meaning |");
     expect(markdown).toContain("## Validation Commands");
     expect(markdown).toContain("## Changed-File Summary");
     expect(markdown).toContain("## Explicit Limitations");

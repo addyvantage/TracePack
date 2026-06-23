@@ -4,7 +4,7 @@ import type { Command } from "commander";
 
 const execFileAsync = promisify(execFile);
 
-type ToolCheck = {
+export type ToolCheck = {
   name: string;
   available: boolean;
   version?: string;
@@ -14,6 +14,16 @@ type ToolCheck = {
 export type TracepackGitIgnoreCheck = {
   state: "yes" | "no" | "unavailable";
   reason?: string;
+};
+
+export type DoctorOutput = {
+  nodeVersion: string;
+  platform: string;
+  arch: string;
+  cwd: string;
+  tools: ToolCheck[];
+  gitRepository: string;
+  tracepackIgnored: TracepackGitIgnoreCheck;
 };
 
 export function registerDoctor(program: Command): void {
@@ -29,27 +39,55 @@ export function registerDoctor(program: Command): void {
       const repo = await checkGitRepository();
       const tracepackIgnored = await checkTracepackIgnoredByGit(process.cwd());
 
-      console.log("TracePack doctor");
-      console.log(`Node: ${process.version}`);
-      console.log(`Platform: ${process.platform} ${process.arch}`);
-      console.log(`Current folder: ${process.cwd()}`);
-      for (const check of [git, npm, pnpm]) {
-        console.log(
-          `${check.name}: ${check.available ? (check.version ?? "available") : "not available"}`
-        );
-      }
-      console.log(`Git repository: ${repo}`);
-      console.log(`.tracepack ignored by Git: ${tracepackIgnored.state}`);
-      if (tracepackIgnored.state === "no") {
-        console.log("Recommendation: add `.tracepack/` to .gitignore before sharing receipts.");
-      }
-      if (tracepackIgnored.state === "unavailable" && tracepackIgnored.reason) {
-        console.log(`.tracepack ignore check: ${tracepackIgnored.reason}`);
-      }
       console.log(
-        "Safe configuration: doctor does not read .env files, credentials, or browser profiles."
+        formatDoctorOutput({
+          nodeVersion: process.version,
+          platform: process.platform,
+          arch: process.arch,
+          cwd: process.cwd(),
+          tools: [git, npm, pnpm],
+          gitRepository: repo,
+          tracepackIgnored
+        })
       );
     });
+}
+
+export function formatDoctorOutput(output: DoctorOutput): string {
+  const lines = [
+    "TracePack doctor",
+    "",
+    "Runtime:",
+    `  Node: ${output.nodeVersion}`,
+    `  Platform: ${output.platform} ${output.arch}`,
+    `  Current folder: ${output.cwd}`,
+    "",
+    "Tools:",
+    ...output.tools.map(
+      (check) =>
+        `  ${check.name}: ${check.available ? (check.version ?? "available") : "not available"}`
+    ),
+    "",
+    "Repository:",
+    `  Git repository: ${output.gitRepository}`,
+    `  .tracepack ignored by Git: ${output.tracepackIgnored.state}`
+  ];
+
+  if (output.tracepackIgnored.state === "no") {
+    lines.push("  Recommendation: add `.tracepack/` to .gitignore before sharing receipts.");
+  }
+
+  if (output.tracepackIgnored.state === "unavailable" && output.tracepackIgnored.reason) {
+    lines.push(`  .tracepack ignore check: ${output.tracepackIgnored.reason}`);
+  }
+
+  lines.push(
+    "",
+    "Privacy:",
+    "  doctor does not read .env files, credentials, or browser profiles."
+  );
+
+  return lines.join("\n");
 }
 
 async function checkTool(

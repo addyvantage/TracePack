@@ -1,11 +1,11 @@
 export const reportStyles = `
 :root {
   color-scheme: light;
-  --bg: #f6f4ef;
+  --bg: #f7f8fa;
   --paper: #ffffff;
   --ink: #171717;
   --muted: #5d646b;
-  --line: #d8d4cb;
+  --line: #d9dee5;
   --accent: #0f766e;
   --warn: #9a3412;
   --bad: #991b1b;
@@ -55,9 +55,15 @@ p { margin: 8px 0; }
   border: 1px solid var(--line);
   border-radius: 8px;
 }
-.panel { padding: 14px; }
+.panel {
+  overflow-wrap: anywhere;
+  padding: 14px;
+}
 .callout {
   border-color: var(--warn);
+  margin-top: 12px;
+}
+.summary-note {
   margin-top: 12px;
 }
 .label {
@@ -84,6 +90,7 @@ th, td {
   padding: 9px 10px;
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 th {
   color: var(--muted);
@@ -97,7 +104,11 @@ code, pre {
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
 }
-code { padding: 2px 5px; }
+code {
+  overflow-wrap: anywhere;
+  padding: 2px 5px;
+  word-break: break-word;
+}
 pre {
   border: 1px solid var(--line);
   overflow: auto;

@@ -1,7 +1,12 @@
 import type { Command } from "commander";
 import path from "node:path";
 import { finishSession } from "../core/session.js";
-import type { CommandEvidence } from "../core/manifest.js";
+import {
+  commandFailed,
+  formatObservationConfidenceMeaning,
+  formatReceiptNextAction,
+  formatReceiptVerdictMeaning
+} from "../core/format.js";
 
 export function registerFinish(program: Command): void {
   program
@@ -28,16 +33,19 @@ export function formatFinishOutput(result: FinishSessionResult): string {
   ).length;
   const changedFiles = manifest.git.after.changedFiles;
   const examples = changedFiles.slice(0, 5);
+  const confidence = manifest.receipt.observationConfidence ?? "unavailable";
+  const explanation =
+    manifest.receipt.explanation ?? formatReceiptVerdictMeaning(manifest.receipt.verdict);
   const lines = [
     "TracePack session finished",
     `Run ID: ${manifest.runId}`,
     manifest.label ? `Label: ${manifest.label}` : undefined,
+    `Receipt verdict: ${manifest.receipt.verdict}`,
+    `Receipt meaning: ${explanation}`,
+    `Receipt confidence: ${confidence}`,
+    `Confidence meaning: ${formatObservationConfidenceMeaning(confidence)}`,
+    `Final fingerprint: ${manifest.receipt.final.fingerprint?.short ?? "not available"}`,
     `Duration: ${manifest.durationMs} ms`,
-    "",
-    "Receipt:",
-    `  verdict: ${manifest.receipt.verdict}`,
-    `  confidence: ${manifest.receipt.observationConfidence ?? "unavailable"}`,
-    `  final fingerprint: ${manifest.receipt.final.fingerprint?.short ?? "not available"}`,
     "",
     "Commands:",
     `  total: ${commands.length}`,
@@ -62,6 +70,19 @@ export function formatFinishOutput(result: FinishSessionResult): string {
     lines.push(`  - ${warning.id} ${warning.title}`);
   }
 
+  if (confidence !== "complete") {
+    const confidenceReasons = manifest.receipt.confidenceReasons ?? [];
+    if (confidenceReasons.length > 0) {
+      lines.push("", "Confidence notes:");
+      for (const reason of confidenceReasons.slice(0, 3)) {
+        lines.push(`  - ${reason}`);
+      }
+      if (confidenceReasons.length > 3) {
+        lines.push(`  - ${confidenceReasons.length - 3} more note(s) in the HTML report.`);
+      }
+    }
+  }
+
   const erroredCommands = commands.filter((command) => !!command.error);
   if (erroredCommands.length > 0) {
     lines.push("", "Command errors:");
@@ -76,15 +97,10 @@ export function formatFinishOutput(result: FinishSessionResult): string {
     `Manifest: ${path.join(result.bundleDir, "manifest.json")}`,
     `Report: ${path.join(result.bundleDir, "report.html")}`,
     "",
+    `Next: ${formatReceiptNextAction(manifest.receipt.verdict)}`,
+    "",
     "TracePack records observed local evidence. It does not prove correctness, security, approval, or merge readiness."
   );
 
   return lines.join("\n");
-}
-
-function commandFailed(command: CommandEvidence): boolean {
-  return (
-    command.exitCode !== 0 &&
-    (command.exitCode !== null || !!command.error || command.signal !== null)
-  );
 }

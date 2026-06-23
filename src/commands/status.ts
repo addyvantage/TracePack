@@ -6,6 +6,7 @@ import {
   type ActiveSessionInspection
 } from "../core/session.js";
 import type { CommandEvidence } from "../core/manifest.js";
+import { commandExitText } from "../core/format.js";
 import { normalizeRelativePath, safePathDescriptor } from "../core/paths.js";
 
 export function registerStatus(program: Command): void {
@@ -19,7 +20,7 @@ export function registerStatus(program: Command): void {
 
 export function formatStatusInspection(inspection: ActiveSessionInspection, cwd: string): string {
   if (inspection.state === "none") {
-    return ["No active TracePack session.", "Run `tracepack start` to begin one."].join("\n");
+    return ["No active TracePack session.", "", "Next: run `tracepack start`"].join("\n");
   }
 
   if (inspection.state === "stale") {
@@ -29,7 +30,7 @@ export function formatStatusInspection(inspection: ActiveSessionInspection, cwd:
       inspection.runId ? `Run ID: ${inspection.runId}` : undefined,
       `Reason: ${inspection.reason}`,
       "",
-      "Run `tracepack clean` to remove the stale pointer."
+      "Next: run `tracepack clean --force`"
     ]
       .filter((line): line is string => line !== undefined)
       .join("\n");
@@ -56,7 +57,8 @@ export function formatStatusInspection(inspection: ActiveSessionInspection, cwd:
 
   lines.push(
     "",
-    "Use `tracepack finish` to write the receipt, or `tracepack clean` to clear the active-session pointer."
+    "Next: run `tracepack run -- <command>` or `tracepack finish`",
+    "Recovery: run `tracepack clean` to clear the active-session pointer."
   );
 
   return lines.join("\n");
@@ -67,7 +69,7 @@ function formatStatusCommand(command: CommandEvidence): string[] {
     `- ${command.id} ${quoteCommand(command.argv)}`,
     `  classification: ${command.classification}`,
     `  evidence: ${command.evidence}`,
-    `  exit: ${commandExitText(command)}`,
+    `  exit / signal: ${commandExitText(command)}`,
     `  duration: ${command.durationMs} ms`
   ];
 
@@ -76,16 +78,6 @@ function formatStatusCommand(command: CommandEvidence): string[] {
   }
 
   return lines;
-}
-
-export function commandExitText(command: Pick<CommandEvidence, "exitCode" | "signal">): string {
-  if (command.exitCode !== null) {
-    return `${command.exitCode}`;
-  }
-  if (command.signal) {
-    return `signal ${command.signal}`;
-  }
-  return "not available";
 }
 
 function relativePath(cwd: string, absolutePath: string): string {

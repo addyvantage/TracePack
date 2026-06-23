@@ -125,6 +125,7 @@ describe("integration", () => {
 
     expect(inspection.state).toBe("none");
     expect(formatStatusInspection(inspection, repo)).toContain("No active TracePack session.");
+    expect(formatStatusInspection(inspection, repo)).toContain("Next: run `tracepack start`");
   });
 
   it("reports an active session with captured commands in status output", async () => {
@@ -146,6 +147,8 @@ describe("integration", () => {
     expect(output).toContain("cmd-001");
     expect(output).toContain("classification: unknown");
     expect(output).toContain("evidence: observed");
+    expect(output).toContain("exit / signal: exit 0");
+    expect(output).toContain("Next: run `tracepack run -- <command>` or `tracepack finish`");
   });
 
   it("explains a stale active-session pointer", async () => {
@@ -158,7 +161,9 @@ describe("integration", () => {
     expect(formatStatusInspection(inspection, repo)).toContain(
       "TracePack active-session pointer is stale or unreadable."
     );
-    expect(formatStatusInspection(inspection, repo)).toContain("Run `tracepack clean`");
+    expect(formatStatusInspection(inspection, repo)).toContain(
+      "Next: run `tracepack clean --force`"
+    );
   });
 
   it("cleaning with no active session is a no-op", async () => {

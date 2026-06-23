@@ -10,5 +10,6 @@ export function registerStart(program: Command): void {
       const session = await startSession(process.cwd(), options.label);
       console.log(`TracePack session started: ${session.runId}`);
       console.log(`Session state: .tracepack/${session.runId}/session.json`);
+      console.log("Next: run `tracepack run -- <command>` or `tracepack status`");
     });
 }

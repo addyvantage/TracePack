@@ -4,6 +4,12 @@ import type {
   RedactionReport,
   TracePackManifest
 } from "../core/manifest.js";
+import {
+  commandExitText,
+  commandFailed,
+  formatObservationConfidenceMeaning,
+  formatReceiptVerdictMeaning
+} from "../core/format.js";
 import { reportStyles } from "./styles.js";
 
 export function renderHtmlReport(
@@ -124,7 +130,11 @@ export function renderHtmlReport(
 }
 
 function metric(label: string, value: string): string {
-  return `<div class="panel"><strong>${escapeHtml(label)}</strong><p>${escapeHtml(value)}</p></div>`;
+  return metricHtml(label, escapeHtml(value));
+}
+
+function metricHtml(label: string, value: string): string {
+  return `<div class="panel"><strong>${escapeHtml(label)}</strong><p>${value}</p></div>`;
 }
 
 function topSummarySection(manifest: TracePackManifest): string {
@@ -134,12 +144,17 @@ function topSummarySection(manifest: TracePackManifest): string {
   return `<section class="top-summary">
     <h2>Evidence Summary</h2>
     <div class="grid">
-      ${metric("Receipt Verdict", receiptSummary.verdict)}
-      ${metric("Confidence", receiptSummary.confidence)}
+      ${metricHtml("Receipt Verdict", statusLabel(receiptSummary.verdict))}
+      ${metricHtml("Confidence", statusLabel(receiptSummary.confidence))}
       ${metric("Commands", `${commandSummary.total} total / ${commandSummary.validation} validation / ${commandSummary.failed} failed`)}
       ${metric("Warnings", `${manifest.warnings.length}`)}
       ${metric("Changed Files", `${manifest.git.after.changedFiles.length}`)}
       ${metric("Final Fingerprint", receiptSummary.finalFingerprint)}
+    </div>
+    <div class="panel summary-note">
+      <p><strong>Meaning:</strong> ${escapeHtml(receiptSummary.explanation)}</p>
+      <p><strong>Confidence meaning:</strong> ${escapeHtml(formatObservationConfidenceMeaning(receiptSummary.confidence))}</p>
+      ${topConfidenceReasonsList(receiptSummary.confidence, receiptSummary.confidenceReasons)}
     </div>
     ${
       topWarning
@@ -154,19 +169,26 @@ function topReceiptSummary(manifest: TracePackManifest): {
   verdict: string;
   confidence: string;
   finalFingerprint: string;
+  explanation: string;
+  confidenceReasons: string[];
 } {
   if (!("receipt" in manifest)) {
     return {
       verdict: "inconclusive",
       confidence: "unavailable",
-      finalFingerprint: "not available"
+      finalFingerprint: "not available",
+      explanation: "Legacy manifest without a final-state validation receipt.",
+      confidenceReasons: []
     };
   }
 
   return {
     verdict: manifest.receipt.verdict,
     confidence: manifest.receipt.observationConfidence ?? "unavailable",
-    finalFingerprint: manifest.receipt.final.fingerprint?.short ?? "not available"
+    finalFingerprint: manifest.receipt.final.fingerprint?.short ?? "not available",
+    explanation:
+      manifest.receipt.explanation ?? formatReceiptVerdictMeaning(manifest.receipt.verdict),
+    confidenceReasons: manifest.receipt.confidenceReasons ?? []
   };
 }
 
@@ -181,6 +203,23 @@ function topCommandSummary(manifest: TracePackManifest): {
       .length,
     failed: manifest.commands.filter(commandFailed).length
   };
+}
+
+function topConfidenceReasonsList(confidence: string, reasons: string[]): string {
+  if (confidence === "complete" || reasons.length === 0) {
+    return "";
+  }
+
+  const renderedReasons = reasons
+    .slice(0, 3)
+    .map((reason) => `<li>${escapeHtml(reason)}</li>`)
+    .join("");
+  const remaining =
+    reasons.length > 3
+      ? `<li>${reasons.length - 3} more confidence note(s) in the receipt section.</li>`
+      : "";
+
+  return `<p><strong>Confidence notes:</strong></p><ul>${renderedReasons}${remaining}</ul>`;
 }
 
 function changedFilesTable(manifest: TracePackManifest): string {
@@ -405,23 +444,6 @@ function statusLabel(value: string): string {
           ? "good"
           : "neutral";
   return `<span class="label ${className}">${escapeHtml(value.replaceAll("_", " "))}</span>`;
-}
-
-function commandExitText(command: TracePackManifest["commands"][number]): string {
-  if (command.exitCode !== null) {
-    return `exit ${command.exitCode}`;
-  }
-  if (command.signal) {
-    return `signal ${command.signal}`;
-  }
-  return "not available";
-}
-
-function commandFailed(command: TracePackManifest["commands"][number]): boolean {
-  return (
-    command.exitCode !== 0 &&
-    (command.exitCode !== null || !!command.error || command.signal !== null)
-  );
 }
 
 function escapeHtml(value: string): string {

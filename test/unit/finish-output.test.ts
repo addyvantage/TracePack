@@ -28,13 +28,64 @@ describe("finish output", () => {
 
     expect(output).toContain("TracePack session finished");
     expect(output).toContain("verdict: validation_failed");
+    expect(output).toContain("Receipt meaning: Validation failed.");
     expect(output).toContain("confidence: complete");
+    expect(output).toContain(
+      "Confidence meaning: TracePack observed the repository-state evidence required by the receipt model."
+    );
     expect(output).toContain("failed: 1");
     expect(output).toContain("timed out / errored: 1");
     expect(output).toContain("src/app.ts");
     expect(output).toContain("TP001 Validation was observed for the final repository state");
     expect(output).toContain("cmd-001: Command timed out after 1 seconds.");
+    expect(output).toContain(
+      "Next: review the failed validation output and rerun validation after fixes."
+    );
     expect(output).toContain("TracePack records observed local evidence.");
+  });
+
+  it("shows confidence notes when receipt confidence is partial", () => {
+    const base = sampleManifest();
+    const manifest = validateManifest({
+      ...base,
+      receipt: {
+        ...base.receipt,
+        verdict: "inconclusive",
+        observationConfidence: "partial",
+        confidenceReasons: [
+          "Ignored paths were observed but not read.",
+          "cmd-001 pre-state: ignored paths were observed but not read."
+        ],
+        explanation: "Validation matched the final fingerprint, but observation was partial."
+      }
+    }) as TracePackManifestV04;
+
+    const output = formatFinishOutput({
+      session: {
+        schemaVersion: "tracepack.session.v0.1",
+        runId: manifest.runId,
+        label: manifest.label,
+        startedAt: manifest.startedAt,
+        cwd: "/tmp/repo",
+        initialGit: manifest.git.before,
+        initialState: manifest.receipt.baseline,
+        commands: manifest.commands
+      },
+      manifest,
+      redactionReport: createRedactionReport({
+        runId: manifest.runId,
+        outputs: [],
+        excludedEvidence: []
+      }),
+      bundleDir: "/tmp/repo/.tracepack/finish-demo"
+    });
+
+    expect(output).toContain("Receipt confidence: partial");
+    expect(output).toContain("Confidence notes:");
+    expect(output).toContain("Ignored paths were observed but not read.");
+    expect(output).toContain(
+      "Next: review observation limits and ignored or sensitive paths before relying on this receipt."
+    );
   });
 });
 

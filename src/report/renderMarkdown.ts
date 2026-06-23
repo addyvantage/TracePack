@@ -1,4 +1,9 @@
 import type { RedactionReport, TracePackManifest } from "../core/manifest.js";
+import {
+  commandFailed,
+  formatObservationConfidenceMeaning,
+  formatReceiptVerdictMeaning
+} from "../core/format.js";
 
 export function renderMarkdownReport(
   manifest: TracePackManifest,
@@ -7,6 +12,7 @@ export function renderMarkdownReport(
   const sections = [
     "# TracePack Evidence Report",
     `TracePack reports observed local evidence. It does not prove correctness, security, approval, or merge readiness.`,
+    evidenceSummary(manifest),
     runSummary(manifest),
     receiptSection(manifest),
     warningSummary(manifest),
@@ -18,6 +24,71 @@ export function renderMarkdownReport(
   ];
 
   return `${sections.join("\n\n")}\n`;
+}
+
+function evidenceSummary(manifest: TracePackManifest): string {
+  const receipt = topReceiptSummary(manifest);
+  const commands = topCommandSummary(manifest);
+
+  return [
+    "## Evidence Summary",
+    table([
+      ["Verdict", inlineCode(receipt.verdict)],
+      ["Meaning", markdownText(receipt.explanation)],
+      [
+        "Confidence",
+        `${inlineCode(receipt.confidence)} - ${markdownText(formatObservationConfidenceMeaning(receipt.confidence))}`
+      ],
+      [
+        "Commands",
+        `${commands.total} total / ${commands.validation} validation / ${commands.failed} failed`
+      ],
+      ["Warnings", `${manifest.warnings.length}`],
+      ["Changed files", `${manifest.git.after.changedFiles.length}`],
+      ["Final fingerprint", inlineCode(receipt.finalFingerprint)],
+      [
+        "Limitation",
+        "TracePack records observed local evidence; it does not prove correctness, security, approval, or merge readiness."
+      ]
+    ])
+  ].join("\n\n");
+}
+
+function topReceiptSummary(manifest: TracePackManifest): {
+  verdict: string;
+  confidence: string;
+  finalFingerprint: string;
+  explanation: string;
+} {
+  if (!("receipt" in manifest)) {
+    return {
+      verdict: "inconclusive",
+      confidence: "unavailable",
+      finalFingerprint: "not available",
+      explanation: "Legacy manifest without a final-state validation receipt."
+    };
+  }
+
+  return {
+    verdict: manifest.receipt.verdict,
+    confidence: manifest.receipt.observationConfidence ?? "unavailable",
+    finalFingerprint: manifest.receipt.final.fingerprint?.short ?? "not available",
+    explanation:
+      manifest.receipt.explanation ?? formatReceiptVerdictMeaning(manifest.receipt.verdict)
+  };
+}
+
+function topCommandSummary(manifest: TracePackManifest): {
+  total: number;
+  validation: number;
+  failed: number;
+} {
+  return {
+    total: manifest.commands.length,
+    validation: manifest.commands.filter((command) => command.classification === "validation")
+      .length,
+    failed: manifest.commands.filter(commandFailed).length
+  };
 }
 
 function runSummary(manifest: TracePackManifest): string {

@@ -11,6 +11,8 @@
 - Added a `doctor` warning when `.tracepack/` does not appear to be ignored by Git.
 - Improved the HTML report top section so receipt verdict, confidence, warning count, command
   counts, changed-file count, and the main limitation are visible immediately.
+- Added clearer CLI next-action hints, grouped `doctor` output, receipt explanations in `finish`,
+  and top Evidence Summary explanations in HTML and Markdown reports.
 
 ## 0.6.0
 
