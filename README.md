@@ -40,9 +40,10 @@ node dist/cli.js run -- npm test
   fingerprint matched the final observed repository-state fingerprint.
 - Receipt confidence showing whether changed-file content observation was complete, partial, or
   unavailable. Large files, symlinks, non-files, unreadable files, excluded sensitive paths, and
-  ignored files are surfaced without reading secrets.
-- Overall receipt confidence is stricter than changed-file content observation: ignored paths that
-  are present but not inspected make matching validation limited rather than fully validated.
+  confidence-limiting ignored inputs are surfaced without reading secrets.
+- Ignored-path relevance: ordinary ambient environment paths such as `node_modules/`, `.venv/`, and
+  caches are reported as environment notes, while sensitive/local ignored inputs and unknown ignored
+  paths still limit receipt confidence.
 - Deterministic warnings such as stale, failed, missing, or inconclusive final-state validation and
   test-related file changes.
 - A local `.tracepack/<run-id>/` bundle with `manifest.json`, `redaction-report.json`, and
@@ -68,6 +69,7 @@ TracePack can support narrow observed claims, such as:
   the matching validation pre-state;
 - a validation fingerprint match was limited by partial observation, or that validation was stale,
   failed, missing, or inconclusive.
+- ambient ignored environment paths were present but not read, hashed, or validated.
 
 ## What It Does Not Prove
 
@@ -81,7 +83,7 @@ tracepack start [--label <name>]
 tracepack run [--timeout <seconds>] -- <command...>
 tracepack status
 tracepack finish [--label <name>]
-tracepack report <bundle-dir> [--format html|markdown|json|all] [--out <path>]
+tracepack report [bundle-dir] [--format html|markdown|json|all] [--out <path>]
 tracepack assert <bundle-dir> [--require-verdict <verdict>] [--require-confidence <confidence>] [--allow-warnings] [--json] [--summary-out <path>] [--quiet]
 tracepack clean [--force]
 tracepack doctor
@@ -90,19 +92,27 @@ tracepack doctor
 The CLI uses local Git and user-approved commands. It does not require a remote repository,
 accounts, auth, a database, Docker, a browser extension, or external model APIs.
 
+On first `tracepack start` inside a Git repo, TracePack idempotently adds `.tracepack/` to the local
+`.git/info/exclude` file when needed. It does not edit tracked `.gitignore` automatically.
+
 `tracepack run` stops the child command after 300 seconds by default. Use `--timeout <seconds>`
 before `--` to set a different positive-integer timeout for that command. Timed-out commands
 preserve captured output so far, are marked as failed command evidence, and do not count as
 successful validation.
+
+Command classification is deterministic and conservative. Common validation commands include test,
+lint, typecheck, and focused local checks such as `git diff --check`; classification does not imply
+correctness, coverage, or merge readiness.
 
 `tracepack status` shows whether an active session exists, what commands have been captured, and
 whether the active-session pointer is stale. `tracepack clean` removes only
 `.tracepack/active-session.json`; it does not delete completed bundles or session files. Use
 `--force` for non-interactive recovery.
 
-`tracepack report <bundle-dir>` defaults to the original HTML behavior and regenerates
-`report.html`. Use `--format markdown` for a PR-friendly Markdown report, `--format json` for a
-CI-friendly `tracepack.summary.v0.1` JSON summary, or `--format all` to write `report.html`,
+`tracepack report [bundle-dir]` defaults to the original HTML behavior and regenerates
+`report.html`. When run without a bundle path inside a repo, it selects the latest completed
+`.tracepack/` bundle. Use `--format markdown` for a PR-friendly Markdown report, `--format json` for
+a CI-friendly `tracepack.summary.v0.1` JSON summary, or `--format all` to write `report.html`,
 `report.md`, and `summary.json` in the bundle directory. `--out <path>` is available for single
 formats only.
 
@@ -125,8 +135,8 @@ npm run demo:smoke
 
 The demo creates local fixture repositories under `examples/demo-regression/.work/`, generates a
 stale-validation bundle, a corrected bundle where validation happens after the final observed
-change, a partial-observation bundle, and an ignored-input bundle that does not overclaim
-validation.
+change, a partial-observation bundle, and an ignored local-input bundle that does not overclaim
+validation when ignored local config changes.
 
 ## Development
 

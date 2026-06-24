@@ -154,6 +154,7 @@ function topSummarySection(manifest: TracePackManifest): string {
     <div class="panel summary-note">
       <p><strong>Meaning:</strong> ${escapeHtml(receiptSummary.explanation)}</p>
       <p><strong>Confidence meaning:</strong> ${escapeHtml(formatObservationConfidenceMeaning(receiptSummary.confidence))}</p>
+      ${environmentNotesList(receiptSummary.environmentNotes)}
       ${topConfidenceReasonsList(receiptSummary.confidence, receiptSummary.confidenceReasons)}
     </div>
     ${
@@ -171,6 +172,7 @@ function topReceiptSummary(manifest: TracePackManifest): {
   finalFingerprint: string;
   explanation: string;
   confidenceReasons: string[];
+  environmentNotes: NonNullable<FinalStateReceipt["environmentNotes"]>;
 } {
   if (!("receipt" in manifest)) {
     return {
@@ -178,7 +180,8 @@ function topReceiptSummary(manifest: TracePackManifest): {
       confidence: "unavailable",
       finalFingerprint: "not available",
       explanation: "Legacy manifest without a final-state validation receipt.",
-      confidenceReasons: []
+      confidenceReasons: [],
+      environmentNotes: []
     };
   }
 
@@ -188,7 +191,8 @@ function topReceiptSummary(manifest: TracePackManifest): {
     finalFingerprint: manifest.receipt.final.fingerprint?.short ?? "not available",
     explanation:
       manifest.receipt.explanation ?? formatReceiptVerdictMeaning(manifest.receipt.verdict),
-    confidenceReasons: manifest.receipt.confidenceReasons ?? []
+    confidenceReasons: manifest.receipt.confidenceReasons ?? [],
+    environmentNotes: manifest.receipt.environmentNotes ?? []
   };
 }
 
@@ -220,6 +224,18 @@ function topConfidenceReasonsList(confidence: string, reasons: string[]): string
       : "";
 
   return `<p><strong>Confidence notes:</strong></p><ul>${renderedReasons}${remaining}</ul>`;
+}
+
+function environmentNotesList(notes: NonNullable<FinalStateReceipt["environmentNotes"]>): string {
+  if (notes.length === 0) {
+    return "";
+  }
+  return `<p><strong>Environment notes:</strong></p><ul>${notes
+    .map((note) => {
+      const pathText = note.path ? `, path <code>${escapeHtml(note.path)}</code>` : "";
+      return `<li><code>${escapeHtml(note.evidenceRef)}</code>${pathText}: ${escapeHtml(note.reason)}</li>`;
+    })
+    .join("")}</ul>`;
 }
 
 function changedFilesTable(manifest: TracePackManifest): string {
@@ -314,6 +330,18 @@ function receiptSection(manifest: TracePackManifest): string {
           .map((id) => `<code>${escapeHtml(id)}</code>`)
           .join(", ")}</p>`
       : "";
+  const failedTraced =
+    (receipt.failedTracedCommandIds?.length ?? 0) > 0
+      ? `<p><strong>Failed traced command(s):</strong> ${(receipt.failedTracedCommandIds ?? [])
+          .map((id) => `<code>${escapeHtml(id)}</code>`)
+          .join(", ")}</p>`
+      : "";
+  const interrupted =
+    (receipt.interruptedCommandIds?.length ?? 0) > 0
+      ? `<p><strong>Interrupted command(s):</strong> ${(receipt.interruptedCommandIds ?? [])
+          .map((id) => `<code>${escapeHtml(id)}</code>`)
+          .join(", ")}</p>`
+      : "";
 
   return `<section>
     <h2>Final-State Validation Receipt</h2>
@@ -327,11 +355,14 @@ function receiptSection(manifest: TracePackManifest): string {
         ${metric("Changed-File Content Observation", changedContentObservation)}
         ${metric("Ignored-Path Observation", ignoredObservation)}
       </div>
+      ${environmentNotesList(receipt.environmentNotes ?? [])}
       ${confidenceReasonsList(confidenceReasons)}
       ${observationLimitsList(receipt.observationLimits ?? [])}
       ${limited}
       ${stale}
       ${failed}
+      ${failedTraced}
+      ${interrupted}
       ${observationDetails(receipt.final)}
       <p class="muted">TracePack does not prove correctness, security, approval, or merge readiness.</p>
     </div>
@@ -366,12 +397,16 @@ function observationDetails(snapshot: GitStateSnapshot): string {
   const excluded = snapshot.excludedChangedFiles ?? [];
   const ignored = snapshot.ignoredFiles;
 
-  if (unobserved.length === 0 && excluded.length === 0 && !ignored) {
+  if (
+    unobserved.length === 0 &&
+    excluded.length === 0 &&
+    (!ignored || ignored.mode === "not_present")
+  ) {
     return "";
   }
 
   return `<div class="panel">
-    <p><strong>Repository-state observation limits</strong></p>
+    <p><strong>Repository-state observation details</strong></p>
     ${
       unobserved.length === 0
         ? ""
@@ -405,7 +440,7 @@ function ignoredSamples(ignored: NonNullable<GitStateSnapshot["ignoredFiles"]>):
   return `<p>Ignored path sample(s), content not read:</p><ul>${ignored.samples
     .map(
       (sample) =>
-        `<li>${sample.path ? `<code>${escapeHtml(sample.path)}</code>` : "path hidden"} (${escapeHtml(sample.kind)}, hash <code>${escapeHtml(sample.pathHash)}</code>): ${escapeHtml(sample.reason)}</li>`
+        `<li>${sample.path ? `<code>${escapeHtml(sample.path)}</code>` : "path hidden"} (${sample.relevance ? `${escapeHtml(sample.relevance)}, ` : ""}${escapeHtml(sample.kind)}, hash <code>${escapeHtml(sample.pathHash)}</code>): ${escapeHtml(sample.reason)}</li>`
     )
     .join("")}</ul>`;
 }
@@ -421,7 +456,7 @@ function warningPanel(warning: TracePackManifest["warnings"][number]): string {
 
 function statusLabel(value: string): string {
   const className =
-    value.includes("failed") || value === "command_failed"
+    value.includes("failed") || value === "command_failed" || value === "command_interrupted"
       ? "bad"
       : value.includes("stale") ||
           value === "partial" ||

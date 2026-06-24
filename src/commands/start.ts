@@ -9,6 +9,11 @@ export function registerStart(program: Command): void {
     .action(async (options: { label?: string }) => {
       const session = await startSession(process.cwd(), options.label);
       console.log(`TracePack session started: ${session.runId}`);
+      if (session.tracepackGitExclude?.state === "added") {
+        console.log(
+          "TracePack added `.tracepack/` to `.git/info/exclude` as a local-only Git exclude entry."
+        );
+      }
       console.log(`Session state: .tracepack/${session.runId}/session.json`);
       console.log("Next: run `tracepack run -- <command>` or `tracepack status`");
     });

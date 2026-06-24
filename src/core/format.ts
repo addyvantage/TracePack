@@ -10,6 +10,12 @@ export function formatReceiptVerdictMeaning(verdict: ValidationReceiptVerdict): 
   if (verdict === "validation_failed") {
     return "validation ran against the final observed state, but did not complete successfully";
   }
+  if (verdict === "command_failed") {
+    return "a traced command failed and no successful validation command was observed";
+  }
+  if (verdict === "command_interrupted") {
+    return "a traced command was interrupted or timed out and no successful validation command was observed";
+  }
   if (verdict === "no_validation_observed") {
     return "no command captured by TracePack was classified as validation";
   }
@@ -26,6 +32,12 @@ export function formatReceiptNextAction(verdict: ValidationReceiptVerdict): stri
   if (verdict === "validation_failed") {
     return "review the failed validation output and rerun validation after fixes.";
   }
+  if (verdict === "command_failed") {
+    return "review the failed command output and run validation after fixes.";
+  }
+  if (verdict === "command_interrupted") {
+    return "review the interrupted command, then rerun validation if it was intended to validate the change.";
+  }
   if (verdict === "no_validation_observed") {
     return "run `tracepack run -- <validation-command>` before relying on this receipt.";
   }
@@ -34,10 +46,10 @@ export function formatReceiptNextAction(verdict: ValidationReceiptVerdict): stri
 
 export function formatObservationConfidenceMeaning(confidence: string | undefined): string {
   if (confidence === "complete") {
-    return "TracePack observed the repository-state evidence required by the receipt model.";
+    return "TracePack observed the tracked/source repository-state evidence required by the receipt model; ambient ignored environment paths may still be noted separately.";
   }
   if (confidence === "partial") {
-    return "Some repository-state evidence was observed only partially; review the confidence notes.";
+    return "Some tracked/source or confidence-limiting local input evidence was observed only partially; review the confidence notes.";
   }
   return "Repository-state observation was unavailable or could not be fully determined.";
 }

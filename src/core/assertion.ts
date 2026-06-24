@@ -17,6 +17,8 @@ export const ASSERTION_VERDICTS = [
   "validated_final_state",
   "validation_stale",
   "validation_failed",
+  "command_failed",
+  "command_interrupted",
   "no_validation_observed",
   "inconclusive"
 ] as const satisfies readonly ValidationReceiptVerdict[];

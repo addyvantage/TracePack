@@ -96,7 +96,7 @@ export function createGitStateSnapshot(
     limitations: [
       "State fingerprints are deterministic metadata receipts, not source-code contents.",
       "Sensitive paths and TracePack internal paths remain excluded from file hashing and are reported as limited evidence.",
-      "Git ignored paths are outside the default repository-state evidence; TracePack does not read ignored file contents.",
+      "Git ignored paths are outside the tracked/source-state fingerprint; TracePack records ignored-path relevance without reading ignored file contents.",
       "A matching fingerprint means TracePack observed the same local Git/worktree metadata, not that the code is correct or secure."
     ]
   };
@@ -251,6 +251,7 @@ function combineObservation(
 
   if (
     contentObservation === "partial" ||
+    ignoredFiles.limitsConfidence === true ||
     ignoredFiles.mode === "partial" ||
     ignoredFiles.mode === "not_observed"
   ) {

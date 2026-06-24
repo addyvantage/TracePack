@@ -21,6 +21,56 @@ const SENSITIVE_PATH_PATTERNS: RegExp[] = [
   /(^|[\\/])AppData[\\/]Roaming[\\/]Microsoft[\\/]Protect([\\/]|$)/i
 ];
 
+const LOCAL_INPUT_PATH_PATTERNS: RegExp[] = [
+  /(^|[\\/])[^\\/]+\.local(\.[^\\/]*)?$/i,
+  /(^|[\\/])config\.local(\.[^\\/]*)?$/i,
+  /(^|[\\/])(local|runtime|secrets?|credentials?|credential|tokens?)([\\/._-]|$)/i,
+  /(^|[\\/]).*\.(secret|secrets|credentials?)$/i,
+  /(^|[\\/])service-account(\.[^\\/]*)?$/i
+];
+
+const AMBIENT_ENVIRONMENT_SEGMENTS = new Set([
+  "node_modules",
+  ".venv",
+  "venv",
+  "env",
+  ".pytest_cache",
+  "__pycache__",
+  ".mypy_cache",
+  ".ruff_cache",
+  ".tox",
+  "coverage",
+  "dist",
+  "build",
+  ".next",
+  ".turbo",
+  ".cache",
+  ".parcel-cache",
+  ".vite",
+  ".npm",
+  ".pnpm-store"
+]);
+
+const AMBIENT_ENVIRONMENT_BASENAMES = new Set([
+  ".coverage",
+  ".coverage.*",
+  ".DS_Store",
+  ".eslintcache",
+  "npm-debug.log",
+  "pnpm-debug.log",
+  "yarn-debug.log",
+  "yarn-error.log"
+]);
+
+const AMBIENT_ENVIRONMENT_PREFIXES = [
+  ".yarn/cache/",
+  ".yarn/unplugged/",
+  ".yarn/install-state.gz",
+  ".yarn/build-state.yml"
+];
+
+export type IgnoredPathRelevance = "ambient_environment" | "sensitive_local_input" | "unknown";
+
 export const SAFE_FILE_HASH_LIMIT_BYTES = 1024 * 1024;
 
 export function createRunId(date = new Date()): string {
@@ -54,6 +104,43 @@ export function normalizeRelativePath(value: string): string {
 export function isSensitivePath(value: string): boolean {
   const normalized = value.replaceAll("/", path.sep);
   return SENSITIVE_PATH_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+export function classifyIgnoredPath(value: string): IgnoredPathRelevance {
+  if (isSensitivePath(value) || isLocalInputPath(value)) {
+    return "sensitive_local_input";
+  }
+  if (isAmbientEnvironmentPath(value)) {
+    return "ambient_environment";
+  }
+  return "unknown";
+}
+
+export function isLocalInputPath(value: string): boolean {
+  const normalized = value.replaceAll("/", path.sep);
+  return LOCAL_INPUT_PATH_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+export function isAmbientEnvironmentPath(value: string): boolean {
+  const normalized = normalizeRelativePath(value).replace(/\/+$/, "");
+  const lower = normalized.toLowerCase();
+  const segments = lower.split("/").filter(Boolean);
+  const basename = segments.at(-1) ?? lower;
+
+  if (
+    AMBIENT_ENVIRONMENT_BASENAMES.has(basename) ||
+    (basename.startsWith(".coverage.") && basename.length > ".coverage.".length)
+  ) {
+    return true;
+  }
+
+  if (segments.some((segment) => AMBIENT_ENVIRONMENT_SEGMENTS.has(segment))) {
+    return true;
+  }
+
+  return AMBIENT_ENVIRONMENT_PREFIXES.some(
+    (prefix) => lower === prefix.replace(/\/$/, "") || lower.startsWith(prefix)
+  );
 }
 
 export function safePathDescriptor(absolutePath: string, root?: string): SafePathDescriptor {

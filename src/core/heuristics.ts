@@ -24,9 +24,13 @@ function validationAfterFinalStateWarnings(receipt: FinalStateReceipt): WarningE
       ? "Successful validation was observed, but not for the final repository state."
       : receipt.verdict === "validation_failed"
         ? "Validation was observed for the final repository state, but it failed."
-        : receipt.verdict === "no_validation_observed"
-          ? "No validation command was observed for the final repository state."
-          : "TracePack could not determine whether validation covered the final repository state.";
+        : receipt.verdict === "command_interrupted"
+          ? "A traced command was interrupted or timed out before successful validation was observed."
+          : receipt.verdict === "command_failed"
+            ? "A traced command failed before successful validation was observed."
+            : receipt.verdict === "no_validation_observed"
+              ? "No validation command was observed for the final repository state."
+              : "TracePack could not determine whether validation covered the final repository state.";
 
   return [
     {

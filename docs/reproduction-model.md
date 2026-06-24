@@ -34,12 +34,12 @@ TracePack's repository-state evidence comes from bounded local Git commands. Git
 files are represented by path/status metadata, diff stats, safe content hashes where allowed, and
 excluded-evidence markers. TracePack does not store full source contents or full raw diffs.
 
-Ignored files are outside default Git status evidence. TracePack does not enumerate or read ignored
-file contents by default, including common ignored directories such as `node_modules`. If validation
-depends on ignored runtime files, the report surfaces this as a blind spot, but the ignored file
-contents are not captured.
+Ignored files are outside the tracked/source-state fingerprint. TracePack does not read ignored file
+contents. Common generated environment paths such as `node_modules/`, `.venv/`, `.pytest_cache/`,
+and `__pycache__/` are reported as ambient environment notes when present; those notes do not claim
+the ignored contents were read, hashed, or validated.
 
-In v0.4, ignored paths observed by Git reduce overall receipt confidence unless they are absent or
-explicitly observed under a future stronger mode. This is conservative: changed-file content
-observation can be complete while overall receipt confidence is still partial because ignored inputs
-were present but not inspected in the final state or the matching validation pre-state.
+Sensitive/local ignored inputs and unknown ignored paths remain confidence-limiting. This is
+conservative: changed-file content observation can be complete while overall receipt confidence is
+still partial because ignored inputs were present but not inspected in the final state or the
+matching validation pre-state.

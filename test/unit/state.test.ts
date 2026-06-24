@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createGitStateSnapshot, fingerprintGitState } from "../../src/core/state.js";
-import { fileMetadata } from "../../src/core/paths.js";
+import { classifyIgnoredPath, fileMetadata } from "../../src/core/paths.js";
 import type { GitEvidence } from "../../src/core/manifest.js";
 
 describe("state fingerprint", () => {
@@ -103,21 +103,79 @@ describe("state fingerprint", () => {
     expect(snapshot.unobservedChangedFiles).toEqual([]);
   });
 
-  it("marks ignored-path partial observation as partial overall observation", () => {
+  it("classifies common ignored path relevance without reading contents", () => {
+    expect(classifyIgnoredPath("node_modules/")).toBe("ambient_environment");
+    expect(classifyIgnoredPath(".venv/")).toBe("ambient_environment");
+    expect(classifyIgnoredPath("pkg/__pycache__/")).toBe("ambient_environment");
+    expect(classifyIgnoredPath("dist/")).toBe("ambient_environment");
+    expect(classifyIgnoredPath("packages/app/build/")).toBe("ambient_environment");
+    expect(classifyIgnoredPath(".cache/")).toBe("ambient_environment");
+    expect(classifyIgnoredPath(".vite/")).toBe("ambient_environment");
+    expect(classifyIgnoredPath(".next/")).toBe("ambient_environment");
+    expect(classifyIgnoredPath("coverage/")).toBe("ambient_environment");
+    expect(classifyIgnoredPath(".env.local")).toBe("sensitive_local_input");
+    expect(classifyIgnoredPath("config.local.json")).toBe("sensitive_local_input");
+    expect(classifyIgnoredPath("dist/config.local.json")).toBe("sensitive_local_input");
+    expect(classifyIgnoredPath("build/runtime-config.json")).toBe("sensitive_local_input");
+    expect(classifyIgnoredPath("local/settings.json")).toBe("sensitive_local_input");
+    expect(classifyIgnoredPath("custom-fixture-data/")).toBe("unknown");
+  });
+
+  it("keeps ambient ignored environment paths out of overall confidence limits", () => {
     const snapshot = createGitStateSnapshot(git(), "2026-01-01T00:00:00.000Z", {
-      mode: "partial",
+      mode: "metadata_observed",
       count: 1,
+      ambientCount: 1,
+      sensitiveLocalCount: 0,
+      unknownCount: 0,
+      limitsConfidence: false,
       samples: [
         {
           path: "node_modules/",
           pathHash: "ignoredhash",
           kind: "directory",
+          relevance: "ambient_environment",
           reason:
-            "Ignored path was detected by Git status, but TracePack did not read or hash its contents."
+            "Ambient ignored environment path was present, but TracePack did not read or hash its contents."
         }
       ],
       reason:
-        "One non-TracePack ignored path was observed. TracePack did not read or hash ignored contents."
+        "One non-TracePack ignored path was observed: one ambient ignored environment path present but not read or hashed. Ambient ignored environment paths do not by themselves limit receipt confidence. TracePack did not read ignored file contents."
+    });
+
+    expect(snapshot.contentObservation).toBe("complete");
+    expect(snapshot.overallObservation).toBe("complete");
+    expect(snapshot.ignoredFiles?.mode).toBe("metadata_observed");
+  });
+
+  it("marks sensitive or unknown ignored paths as partial overall observation", () => {
+    const snapshot = createGitStateSnapshot(git(), "2026-01-01T00:00:00.000Z", {
+      mode: "partial",
+      count: 2,
+      ambientCount: 0,
+      sensitiveLocalCount: 1,
+      unknownCount: 1,
+      limitsConfidence: true,
+      samples: [
+        {
+          path: undefined,
+          pathHash: "ignoredhash",
+          kind: "file",
+          relevance: "sensitive_local_input",
+          reason:
+            "Ignored path matched sensitive or local input rules; path label is hidden and content was not read."
+        },
+        {
+          path: "custom-fixture-data/",
+          pathHash: "unknownhash",
+          kind: "directory",
+          relevance: "unknown",
+          reason:
+            "Ignored path did not match a known ambient environment category; content was not read and confidence is limited."
+        }
+      ],
+      reason:
+        "Two non-TracePack ignored paths were observed. Sensitive/local or unknown ignored paths may affect validation, so receipt confidence is limited. TracePack did not read ignored file contents."
     });
 
     expect(snapshot.contentObservation).toBe("complete");

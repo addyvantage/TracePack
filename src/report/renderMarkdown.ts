@@ -125,6 +125,7 @@ function receiptSection(manifest: TracePackManifest): string {
   const ignoredObservation = receipt.final.ignoredFiles?.mode ?? "unavailable";
   const confidenceReasons = receipt.confidenceReasons ?? [];
   const observationLimits = receipt.observationLimits ?? [];
+  const environmentNotes = receipt.environmentNotes ?? [];
 
   return [
     "## Final-State Validation Receipt",
@@ -136,10 +137,23 @@ function receiptSection(manifest: TracePackManifest): string {
       ["Limited command IDs", ids(receipt.limitedCommandIds ?? [])],
       ["Stale command IDs", ids(receipt.staleCommandIds)],
       ["Failed command IDs", ids(receipt.failedCommandIds)],
+      ["Failed traced command IDs", ids(receipt.failedTracedCommandIds ?? [])],
+      ["Interrupted command IDs", ids(receipt.interruptedCommandIds ?? [])],
       ["Changed-file content observation", inlineCode(changedContentObservation)],
       ["Ignored-path observation", inlineCode(ignoredObservation)]
     ]),
     `**Explanation:** ${markdownText(receipt.explanation)}`,
+    environmentNotes.length > 0
+      ? [
+          "**Environment notes:**",
+          list(
+            environmentNotes.map(
+              (note) =>
+                `${inlineCode(note.evidenceRef)}${note.path ? `, path ${inlineCode(note.path)}` : ""}: ${markdownText(note.reason)}`
+            )
+          )
+        ].join("\n\n")
+      : "",
     confidenceReasons.length > 0
       ? ["**Confidence notes:**", list(confidenceReasons.map(markdownText))].join("\n\n")
       : "",

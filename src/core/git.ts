@@ -3,8 +3,10 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { ChangedFile, GitEvidence, GitStateSnapshot } from "./manifest.js";
 import {
+  classifyIgnoredPath,
   ensurePathInside,
   fileMetadata,
+  type IgnoredPathRelevance,
   isSensitivePath,
   normalizeRelativePath,
   safePathDescriptor,
@@ -96,25 +98,102 @@ export async function captureIgnoredFilesObservation(
     };
   }
 
+  const classified = ignoredPaths.map((ignoredPath) => ({
+    path: ignoredPath,
+    relevance: classifyIgnoredPath(ignoredPath)
+  }));
+  const ambientCount = classified.filter(
+    (entry) => entry.relevance === "ambient_environment"
+  ).length;
+  const sensitiveLocalCount = classified.filter(
+    (entry) => entry.relevance === "sensitive_local_input"
+  ).length;
+  const unknownCount = classified.filter((entry) => entry.relevance === "unknown").length;
+  const limitsConfidence = sensitiveLocalCount > 0 || unknownCount > 0;
+
   return {
-    mode: "partial",
+    mode: limitsConfidence ? "partial" : "metadata_observed",
     count: ignoredPaths.length,
-    samples: ignoredPaths.slice(0, IGNORED_SAMPLE_LIMIT).map((ignoredPath) => {
+    ambientCount,
+    sensitiveLocalCount,
+    unknownCount,
+    limitsConfidence,
+    samples: classified.slice(0, IGNORED_SAMPLE_LIMIT).map(({ path: ignoredPath, relevance }) => {
       const sensitive = isSensitivePath(ignoredPath);
       return {
         path: sensitive ? undefined : ignoredPath,
         pathHash: shortHash(ignoredPath),
-        kind: ignoredPath.endsWith("/") ? "directory" : "unknown",
-        reason: sensitive
-          ? "Ignored path matched TracePack sensitive path rules; path label is hidden and content was not read."
-          : "Ignored path was detected by Git status, but TracePack did not read or hash its contents."
+        kind: ignoredPathKind(ignoredPath),
+        relevance,
+        reason: ignoredSampleReason(relevance, sensitive)
       };
     }),
-    reason:
-      ignoredPaths.length === 1
-        ? "One non-TracePack ignored path was observed. TracePack did not read or hash ignored contents."
-        : `${ignoredPaths.length} non-TracePack ignored paths were observed. TracePack did not read or hash ignored contents.`
+    reason: ignoredObservationReason({
+      total: ignoredPaths.length,
+      ambientCount,
+      sensitiveLocalCount,
+      unknownCount
+    })
   };
+}
+
+function ignoredPathKind(ignoredPath: string): "file" | "directory" | "unknown" {
+  if (ignoredPath.endsWith("/")) {
+    return "directory";
+  }
+  const basename = ignoredPath.split("/").at(-1) ?? ignoredPath;
+  return basename.includes(".") ? "file" : "unknown";
+}
+
+function ignoredSampleReason(relevance: IgnoredPathRelevance, pathHidden: boolean): string {
+  if (relevance === "ambient_environment") {
+    return "Ambient ignored environment path was present, but TracePack did not read or hash its contents.";
+  }
+  if (relevance === "sensitive_local_input") {
+    return pathHidden
+      ? "Ignored path matched sensitive or local input rules; path label is hidden and content was not read."
+      : "Ignored path matched sensitive or local input rules; content was not read.";
+  }
+  return "Ignored path did not match a known ambient environment category; content was not read and confidence is limited.";
+}
+
+function ignoredObservationReason(counts: {
+  total: number;
+  ambientCount: number;
+  sensitiveLocalCount: number;
+  unknownCount: number;
+}): string {
+  const parts: string[] = [];
+  if (counts.ambientCount > 0) {
+    parts.push(
+      `${formatCount(counts.ambientCount, "ambient ignored environment path")} present but not read or hashed`
+    );
+  }
+  if (counts.sensitiveLocalCount > 0) {
+    parts.push(
+      `${formatCount(counts.sensitiveLocalCount, "sensitive or local ignored input path")} present and not observed`
+    );
+  }
+  if (counts.unknownCount > 0) {
+    parts.push(
+      `${formatCount(counts.unknownCount, "unknown ignored path")} present and not observed`
+    );
+  }
+
+  const prefix =
+    counts.total === 1
+      ? "One non-TracePack ignored path was observed"
+      : `${counts.total} non-TracePack ignored paths were observed`;
+  const limit =
+    counts.sensitiveLocalCount > 0 || counts.unknownCount > 0
+      ? "Sensitive/local or unknown ignored paths may affect validation, so receipt confidence is limited."
+      : "Ambient ignored environment paths do not by themselves limit receipt confidence.";
+
+  return `${prefix}: ${parts.join("; ")}. ${limit} TracePack did not read ignored file contents.`;
+}
+
+function formatCount(count: number, singular: string): string {
+  return count === 1 ? `one ${singular}` : `${count} ${singular}s`;
 }
 
 async function gitAvailable(cwd: string): Promise<boolean> {

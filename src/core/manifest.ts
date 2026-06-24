@@ -106,6 +106,11 @@ export const StateFingerprintSchema = z.object({
 });
 
 export const ContentObservationSchema = z.enum(["complete", "partial", "unavailable"]);
+export const IgnoredPathRelevanceSchema = z.enum([
+  "ambient_environment",
+  "sensitive_local_input",
+  "unknown"
+]);
 
 export const ChangedFileObservationSchema = z.object({
   path: z.string(),
@@ -126,12 +131,17 @@ export const IgnoredFilesObservationSchema = z.object({
   ]),
   reason: z.string(),
   count: z.number().int().nonnegative().optional(),
+  ambientCount: z.number().int().nonnegative().optional(),
+  sensitiveLocalCount: z.number().int().nonnegative().optional(),
+  unknownCount: z.number().int().nonnegative().optional(),
+  limitsConfidence: z.boolean().optional(),
   samples: z
     .array(
       z.object({
         path: z.string().optional(),
         pathHash: z.string(),
         kind: z.enum(["file", "directory", "other", "unknown"]),
+        relevance: IgnoredPathRelevanceSchema.optional(),
         reason: z.string()
       })
     )
@@ -173,6 +183,8 @@ export const ValidationReceiptVerdictSchema = z.enum([
   "validated_final_state",
   "validation_stale",
   "validation_failed",
+  "command_failed",
+  "command_interrupted",
   "no_validation_observed",
   "inconclusive"
 ]);
@@ -199,9 +211,21 @@ export const FinalStateReceiptSchema = z.object({
       })
     )
     .optional(),
+  environmentNotes: z
+    .array(
+      z.object({
+        kind: z.string(),
+        evidenceRef: z.string(),
+        path: z.string().optional(),
+        reason: z.string()
+      })
+    )
+    .optional(),
   coveringCommandIds: z.array(z.string()),
   staleCommandIds: z.array(z.string()),
   failedCommandIds: z.array(z.string()),
+  failedTracedCommandIds: z.array(z.string()).optional(),
+  interruptedCommandIds: z.array(z.string()).optional(),
   limitedCommandIds: z.array(z.string()).optional(),
   evidenceRefs: z.array(z.string()),
   explanation: z.string(),
@@ -293,6 +317,7 @@ export type ChangedFile = z.infer<typeof ChangedFileSchema>;
 export type GitEvidence = z.infer<typeof GitEvidenceSchema>;
 export type StateFingerprint = z.infer<typeof StateFingerprintSchema>;
 export type ContentObservation = z.infer<typeof ContentObservationSchema>;
+export type IgnoredPathRelevance = z.infer<typeof IgnoredPathRelevanceSchema>;
 export type ChangedFileObservation = z.infer<typeof ChangedFileObservationSchema>;
 export type GitStateSnapshot = z.infer<typeof GitStateSnapshotSchema>;
 export type CommandEvidence = z.infer<typeof CommandEvidenceSchema>;

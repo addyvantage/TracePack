@@ -13,6 +13,17 @@
   counts, changed-file count, and the main limitation are visible immediately.
 - Added clearer CLI next-action hints, grouped `doctor` output, receipt explanations in `finish`,
   and top Evidence Summary explanations in HTML and Markdown reports.
+- Hardened ignored-path relevance so ambient environment paths such as `node_modules/`, `.venv/`,
+  and caches are reported as non-limiting environment notes, while sensitive/local ignored inputs
+  and unknown ignored paths remain confidence-limiting.
+- Promoted failed and interrupted traced commands to top-level receipt verdicts when no successful
+  validation was observed.
+- Made `tracepack start` idempotently add `.tracepack/` to local `.git/info/exclude` when needed,
+  without editing tracked `.gitignore`.
+- Made `tracepack report` select the latest completed bundle when run without a bundle path.
+- Classified `git diff --check` as deterministic validation evidence.
+- Updated the regression demo to use ignored local config for the ignored-input confidence-limit
+  case.
 
 ## 0.6.0
 

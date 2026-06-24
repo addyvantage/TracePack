@@ -23,7 +23,8 @@ describe("doctor output", () => {
     expect(output).toContain("  pnpm: not available");
     expect(output).toContain("Repository:");
     expect(output).toContain("  .tracepack ignored by Git: no");
-    expect(output).toContain("Recommendation: add `.tracepack/` to .gitignore");
+    expect(output).toContain("Local exclude: `tracepack start` will add `.tracepack/`");
+    expect(output).toContain("Shared ignore: add `.tracepack/` to .gitignore only if");
     expect(output).toContain("Privacy:");
     expect(output).toContain("doctor does not read .env files, credentials, or browser profiles.");
   });

@@ -41,7 +41,10 @@ export type TracePackSummaryJson = {
     coveringCommandIds: string[];
     staleCommandIds: string[];
     failedCommandIds: string[];
+    failedTracedCommandIds: string[];
+    interruptedCommandIds: string[];
     limitedCommandIds: string[];
+    environmentNotes: Array<{ kind: string; evidenceRef: string; path?: string; reason: string }>;
     explanation?: string;
   };
   finalState: {
@@ -55,6 +58,11 @@ export type TracePackSummaryJson = {
     contentObservation?: string;
     overallObservation?: string;
     ignoredFilesMode?: string;
+    ignoredFilesCount?: number;
+    ambientIgnoredPathCount?: number;
+    sensitiveLocalIgnoredPathCount?: number;
+    unknownIgnoredPathCount?: number;
+    ignoredFilesLimitConfidence?: boolean;
   };
   redaction: {
     applied: boolean;
@@ -133,7 +141,10 @@ function receiptSummary(manifest: TracePackManifest): TracePackSummaryJson["rece
       coveringCommandIds: [],
       staleCommandIds: [],
       failedCommandIds: [],
+      failedTracedCommandIds: [],
+      interruptedCommandIds: [],
       limitedCommandIds: [],
+      environmentNotes: [],
       explanation: "Legacy manifest without a final-state validation receipt."
     };
   }
@@ -148,7 +159,10 @@ function receiptSummary(manifest: TracePackManifest): TracePackSummaryJson["rece
     coveringCommandIds: manifest.receipt.coveringCommandIds,
     staleCommandIds: manifest.receipt.staleCommandIds,
     failedCommandIds: manifest.receipt.failedCommandIds,
+    failedTracedCommandIds: manifest.receipt.failedTracedCommandIds ?? [],
+    interruptedCommandIds: manifest.receipt.interruptedCommandIds ?? [],
     limitedCommandIds: manifest.receipt.limitedCommandIds ?? [],
+    environmentNotes: manifest.receipt.environmentNotes ?? [],
     explanation: manifest.receipt.explanation
   };
 }
@@ -168,7 +182,12 @@ function finalStateSummary(manifest: TracePackManifest): TracePackSummaryJson["f
     diffStat: manifest.git.after.diffStat,
     contentObservation: final?.contentObservation,
     overallObservation: final?.overallObservation,
-    ignoredFilesMode: final?.ignoredFiles?.mode
+    ignoredFilesMode: final?.ignoredFiles?.mode,
+    ignoredFilesCount: final?.ignoredFiles?.count,
+    ambientIgnoredPathCount: final?.ignoredFiles?.ambientCount,
+    sensitiveLocalIgnoredPathCount: final?.ignoredFiles?.sensitiveLocalCount,
+    unknownIgnoredPathCount: final?.ignoredFiles?.unknownCount,
+    ignoredFilesLimitConfidence: final?.ignoredFiles?.limitsConfidence
   };
 }
 

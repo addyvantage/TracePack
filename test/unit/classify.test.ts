@@ -11,6 +11,8 @@ describe("command classification", () => {
     expect(classifyCommand(["pnpm", "run", "lint"])).toBe("validation");
     expect(classifyCommand(["tsc", "--noEmit"])).toBe("validation");
     expect(classifyCommand(["go", "test", "./..."])).toBe("validation");
+    expect(classifyCommand(["git", "diff", "--check"])).toBe("validation");
+    expect(classifyCommand(["git", "diff", "--cached", "--check"])).toBe("validation");
   });
 
   it("classifies build as possible validation and install as non-validation", () => {

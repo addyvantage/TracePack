@@ -1,7 +1,8 @@
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { runAndCaptureCommand } from "./commands.js";
 import { writeBundle, readJson, writeJson } from "./bundle.js";
+import { runGit } from "./git.js";
 import { runHeuristics } from "./heuristics.js";
 import {
   MANIFEST_SCHEMA_VERSION,
@@ -33,7 +34,24 @@ export type SessionState = {
   initialGit: GitEvidence;
   initialState: GitStateSnapshot;
   commands: CommandEvidence[];
+  tracepackGitExclude?: TracepackGitExcludeResult;
 };
+
+export type TracepackGitExcludeResult =
+  | {
+      state: "added";
+      excludePath: string;
+    }
+  | {
+      state: "already_ignored";
+    }
+  | {
+      state: "not_git";
+    }
+  | {
+      state: "unavailable";
+      reason: string;
+    };
 
 type ActiveSessionPointer = {
   runId: string;
@@ -67,6 +85,7 @@ export async function startSession(cwd: string, label?: string): Promise<Session
     throw new Error(`An active TracePack session already exists: ${existing.runId}`);
   }
 
+  const tracepackGitExclude = await ensureTracepackGitExcluded(cwd);
   const initialState = await captureGitStateSnapshot(cwd);
   const initialGit = initialState.git;
   if (!initialGit.available) {
@@ -87,7 +106,8 @@ export async function startSession(cwd: string, label?: string): Promise<Session
     cwd,
     initialGit,
     initialState,
-    commands: []
+    commands: [],
+    tracepackGitExclude
   };
 
   await saveSession(session);
@@ -179,6 +199,56 @@ export async function saveSession(session: SessionState): Promise<void> {
   await mkdir(dir, { recursive: true });
   await writeJson(path.join(dir, "session.json"), session);
   await writeJson(activeSessionPath(session.cwd), { runId: session.runId });
+}
+
+export async function ensureTracepackGitExcluded(cwd: string): Promise<TracepackGitExcludeResult> {
+  const inside = await runGit(cwd, ["rev-parse", "--is-inside-work-tree"], true);
+  if (!inside.ok || inside.stdout.trim() !== "true") {
+    return { state: "not_git" };
+  }
+
+  const ignored = await runGit(cwd, ["check-ignore", "-q", ".tracepack/"], true);
+  if (ignored.ok) {
+    return { state: "already_ignored" };
+  }
+  if (ignored.exitCode !== 1) {
+    return { state: "unavailable", reason: "git check-ignore failed." };
+  }
+
+  const exclude = await runGit(cwd, ["rev-parse", "--git-path", "info/exclude"], true);
+  const rawExcludePath = exclude.stdout.trim();
+  if (!exclude.ok || !rawExcludePath) {
+    return { state: "unavailable", reason: "Git exclude path could not be resolved." };
+  }
+
+  const excludePath = path.isAbsolute(rawExcludePath)
+    ? rawExcludePath
+    : path.resolve(cwd, rawExcludePath);
+  await mkdir(path.dirname(excludePath), { recursive: true });
+
+  let existing = "";
+  try {
+    existing = await readFile(excludePath, "utf8");
+  } catch (error) {
+    if (!isFileNotFound(error)) {
+      return {
+        state: "unavailable",
+        reason: `Git exclude file could not be read: ${errorMessage(error)}`
+      };
+    }
+  }
+
+  if (hasTracepackExclude(existing)) {
+    return { state: "already_ignored" };
+  }
+
+  const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
+  await appendFile(
+    excludePath,
+    `${prefix}# TracePack local evidence bundles\n.tracepack/\n`,
+    "utf8"
+  );
+  return { state: "added", excludePath };
 }
 
 export async function runCommandInSession(
@@ -350,6 +420,13 @@ function isSessionState(value: unknown): value is SessionState {
     typeof candidate.initialState === "object" &&
     Array.isArray(candidate.commands)
   );
+}
+
+function hasTracepackExclude(value: string): boolean {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.replace(/#.*/, "").trim())
+    .some((line) => line === ".tracepack/" || line === ".tracepack");
 }
 
 function isFileNotFound(error: unknown): boolean {

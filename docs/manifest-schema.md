@@ -9,7 +9,8 @@ Each `manifest.json` includes:
 - safe OS metadata and a safe current-folder representation;
 - Git evidence before and after the run;
 - baseline and final state fingerprints;
-- state-observation completeness for changed-file content and overall receipt confidence;
+- state-observation completeness for changed-file content, ignored-path relevance, and overall
+  receipt confidence;
 - changed-file paths, statuses, counts, diff statistics, safe metadata, and exclusions;
 - command argv, exit code, timings, summaries, truncation metadata, classification, evidence labels,
   and optional `gitBefore`/`gitAfter` state snapshots;
@@ -33,15 +34,18 @@ Snapshot observation fields:
 
 - `contentObservation`: `complete`, `partial`, or `unavailable`.
 - `overallObservation`: `complete`, `partial`, or `unavailable`; this combines changed-file content
-  observation with ignored-path observation.
+  observation with confidence-limiting ignored-path observation. Ambient ignored environment paths
+  do not by themselves make this partial.
 - `observedChangedFiles`: changed files whose content was safely hashed or where content hashing is
   not applicable, such as deletions.
 - `unobservedChangedFiles`: safe changed paths without a content hash, with a reason such as size
   limit, symlink, non-file, unreadable path, or other hash failure.
 - `excludedChangedFiles`: changed paths excluded by sensitive-path or TracePack-internal rules.
-- `ignoredFiles`: ignored-path observation with `mode`, `reason`, and optional bounded
-  count/samples. Sample entries include a path hash; non-sensitive samples may include a path label,
-  while sensitive path labels are hidden. Modes are `not_present`, `metadata_observed`,
+- `ignoredFiles`: ignored-path observation with `mode`, `reason`, optional bounded count/samples,
+  optional relevance counts (`ambientCount`, `sensitiveLocalCount`, `unknownCount`), and optional
+  `limitsConfidence`. Sample entries include a path hash and may include a relevance value of
+  `ambient_environment`, `sensitive_local_input`, or `unknown`. Non-sensitive samples may include a
+  path label, while sensitive path labels are hidden. Modes are `not_present`, `metadata_observed`,
   `content_observed`, `partial`, `not_observed`, and `unavailable`.
 
 `receipt.verdict` is one of:
@@ -49,6 +53,8 @@ Snapshot observation fields:
 - `validated_final_state`
 - `validation_stale`
 - `validation_failed`
+- `command_failed`
+- `command_interrupted`
 - `no_validation_observed`
 - `inconclusive`
 
@@ -63,20 +69,29 @@ validation commands observed against the final fingerprint.
 the matching validation command pre-state snapshot.
 
 `receipt.changedContentObservation` records the narrower Git-reported changed-file content
-observation. It can be `complete` while `receipt.observationConfidence` is `partial` because ignored
-paths were present but not inspected.
+observation. It can be `complete` while `receipt.observationConfidence` is `partial` because
+sensitive/local ignored inputs or unknown ignored paths were present but not inspected. If only
+ambient ignored environment paths such as `node_modules/`, `.venv/`, `.pytest_cache/`, or
+`__pycache__/` are present, the receipt can still have `complete` confidence for the tracked/source
+state and will list those paths as environment notes instead of validation evidence.
 
 If the fingerprint matches but final or matching command pre-state observation is partial or
 unavailable, the receipt uses `inconclusive`, records the matching command in `coveringCommandIds`,
 and records the limited match in `limitedCommandIds`.
 
 `receipt.confidenceReasons` contains human-readable, privacy-preserving explanations for limits,
-including unhashable changed files, excluded changed files, and ignored-file blind spots.
+including unhashable changed files, excluded changed files, sensitive/local ignored inputs, and
+unknown ignored paths.
 
 `receipt.observationLimits` contains structured evidence references for the same limits, such as
 `receipt.final.unobservedChangedFiles`, `receipt.final.excludedChangedFiles`, or
-`receipt.final.ignoredFiles`. Matching command pre-state limits use refs such as
+`receipt.final.ignoredFiles`. Ignored-path limit kinds distinguish sensitive/local ignored inputs
+from unknown ignored paths. Matching command pre-state limits use refs such as
 `commands:cmd-001.gitBefore.ignoredFiles`.
+
+`receipt.environmentNotes` contains non-limiting ambient ignored environment notes. These notes mean
+the paths were present and not read or hashed; they do not claim dependency, cache, build output, or
+environment contents were validated.
 
 `receipt.evidenceRefs`, `receipt.explanation`, and `receipt.limitations` provide reviewer-facing
 context. The receipt is a local evidence claim only; it does not prove correctness, security, or

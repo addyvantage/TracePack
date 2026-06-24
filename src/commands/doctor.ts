@@ -74,7 +74,12 @@ export function formatDoctorOutput(output: DoctorOutput): string {
   ];
 
   if (output.tracepackIgnored.state === "no") {
-    lines.push("  Recommendation: add `.tracepack/` to .gitignore before sharing receipts.");
+    lines.push(
+      "  Local exclude: `tracepack start` will add `.tracepack/` to `.git/info/exclude` for this clone without editing tracked files."
+    );
+    lines.push(
+      "  Shared ignore: add `.tracepack/` to .gitignore only if you want the ignore rule tracked for the repository."
+    );
   }
 
   if (output.tracepackIgnored.state === "unavailable" && output.tracepackIgnored.reason) {

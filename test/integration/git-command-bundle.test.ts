@@ -16,7 +16,7 @@ import {
   startSession
 } from "../../src/core/session.js";
 import { validateManifest } from "../../src/core/manifest.js";
-import { regenerateReport } from "../../src/core/bundle.js";
+import { findLatestBundleDir, regenerateReport } from "../../src/core/bundle.js";
 import { createRedactionReport } from "../../src/core/redaction.js";
 import { activeSessionPath, runDirectory } from "../../src/core/paths.js";
 
@@ -63,12 +63,15 @@ describe("integration", () => {
 
     const ignored = await captureIgnoredFilesObservation(repo);
     expect(ignored.mode).toBe("partial");
+    expect(ignored.sensitiveLocalCount).toBe(1);
+    expect(ignored.limitsConfidence).toBe(true);
     expect(ignored.samples).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           path: undefined,
           pathHash: expect.any(String),
-          reason: expect.stringContaining("sensitive path")
+          relevance: "sensitive_local_input",
+          reason: expect.stringContaining("sensitive or local input")
         })
       ])
     );
@@ -104,6 +107,31 @@ describe("integration", () => {
     expect(evidence.stdout.text).toContain("stdout-before-timeout");
     expect(evidence.stderr.text).toContain("stderr-before-timeout");
     expect(evidence.durationMs).toBeLessThan(4_000);
+  });
+
+  it("promotes timed-out traced commands in the final receipt and clears the active session", async () => {
+    const repo = await createFixtureRepo();
+    await startSession(repo, "timeout-final-receipt");
+    await runCommandInSession(
+      repo,
+      [process.execPath, "-e", "console.error('before-timeout'); setTimeout(() => {}, 5000);"],
+      { timeoutSeconds: 1 }
+    );
+
+    const active = await inspectActiveSession(repo);
+    expect(active.state).toBe("active");
+    const status = formatStatusInspection(active, repo);
+    expect(status).toContain("error: Command timed out after 1 seconds.");
+    expect(status).toContain("exit / signal:");
+
+    const result = await finishSession(repo);
+    expect(result.manifest.receipt.verdict).toBe("command_interrupted");
+    expect(result.manifest.receipt.interruptedCommandIds).toEqual(["cmd-001"]);
+    expect(result.manifest.commands[0]?.error).toBe("Command timed out after 1 seconds.");
+    expect(result.manifest.commands[0]?.stderr.text).toContain("before-timeout");
+    await expect(inspectActiveSession(repo)).resolves.toEqual(
+      expect.objectContaining({ state: "none" })
+    );
   });
 
   it("creates a one-command bundle", async () => {
@@ -205,6 +233,40 @@ describe("integration", () => {
     await expect(checkTracepackIgnoredByGit(unignoredRepo)).resolves.toEqual({ state: "no" });
   });
 
+  it("adds a local .tracepack exclude on first session start without dirtying source state", async () => {
+    const repo = await createFixtureRepo({ gitignore: "node_modules/\n" });
+    await expect(checkTracepackIgnoredByGit(repo)).resolves.toEqual({ state: "no" });
+
+    const session = await startSession(repo, "first-run-exclude");
+    expect(session.tracepackGitExclude?.state).toBe("added");
+    await expect(checkTracepackIgnoredByGit(repo)).resolves.toEqual({ state: "yes" });
+
+    await runCommandInSession(repo, [npmCommand, "test"]);
+    const result = await finishSession(repo);
+
+    expect(result.manifest.git.after.changedFiles.map((file) => file.path)).not.toContain(
+      ".tracepack"
+    );
+    expect(
+      result.manifest.git.after.changedFiles.some((file) => file.path.startsWith(".tracepack/"))
+    ).toBe(false);
+    expect(result.manifest.receipt.verdict).toBe("validated_final_state");
+  });
+
+  it("appends the local .tracepack exclude after an existing exclude without a trailing newline", async () => {
+    const repo = await createFixtureRepo({ gitignore: "node_modules/\n" });
+    const excludePath = path.join(repo, ".git", "info", "exclude");
+    await writeFile(excludePath, "existing-local-pattern", "utf8");
+
+    const session = await startSession(repo, "exclude-newline");
+    const exclude = await readFile(excludePath, "utf8");
+
+    expect(session.tracepackGitExclude?.state).toBe("added");
+    expect(exclude).toContain(
+      "existing-local-pattern\n# TracePack local evidence bundles\n.tracepack/\n"
+    );
+  });
+
   it("reports validated_final_state when validation runs after the final change", async () => {
     const repo = await createFixtureRepo();
     await startSession(repo, "validated");
@@ -258,7 +320,7 @@ describe("integration", () => {
     );
   });
 
-  it("does not fully validate when validation reads an ignored file that later changes", async () => {
+  it("validates matching tracked state when only ambient ignored environment paths are present", async () => {
     const repo = await createFixtureRepo();
     await mkdir(path.join(repo, "node_modules"), { recursive: true });
     await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "ok\n", "utf8");
@@ -272,31 +334,41 @@ describe("integration", () => {
     await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "changed\n", "utf8");
     const result = await finishSession(repo);
 
-    expect(result.manifest.receipt.verdict).toBe("inconclusive");
-    expect(result.manifest.receipt.observationConfidence).toBe("partial");
+    expect(result.manifest.receipt.verdict).toBe("validated_final_state");
+    expect(result.manifest.receipt.observationConfidence).toBe("complete");
     expect(result.manifest.receipt.coveringCommandIds).toEqual(["cmd-001"]);
-    expect(result.manifest.receipt.limitedCommandIds).toEqual(["cmd-001"]);
-    expect(result.manifest.receipt.confidenceReasons).toEqual(
-      expect.arrayContaining([expect.stringContaining("ignored path")])
+    expect(result.manifest.receipt.limitedCommandIds).toEqual([]);
+    expect(result.manifest.receipt.environmentNotes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "ambient_ignored_environment",
+          reason: expect.stringContaining("Ambient ignored environment")
+        })
+      ])
     );
-    expect(result.manifest.receipt.final.ignoredFiles?.mode).toBe("partial");
+    expect(result.manifest.receipt.final.ignoredFiles?.mode).toBe("metadata_observed");
+    expect(result.manifest.receipt.final.ignoredFiles?.ambientCount).toBe(1);
+    expect(result.manifest.receipt.final.ignoredFiles?.limitsConfidence).toBe(false);
     expect(result.manifest.receipt.final.ignoredFiles?.samples).toEqual(
-      expect.arrayContaining([expect.objectContaining({ path: "node_modules/" })])
+      expect.arrayContaining([
+        expect.objectContaining({ path: "node_modules/", relevance: "ambient_environment" })
+      ])
     );
   });
 
-  it("does not fully validate when ignored validation input is removed before finish", async () => {
-    const repo = await createFixtureRepo();
-    await mkdir(path.join(repo, "node_modules"), { recursive: true });
-    await writeFile(path.join(repo, "node_modules", "runtime-config.txt"), "ok\n", "utf8");
+  it("does not fully validate when sensitive ignored validation input is removed before finish", async () => {
+    const repo = await createFixtureRepo({
+      gitignore: ".tracepack/\nnode_modules/\n.env.local\n"
+    });
+    await writeFile(path.join(repo, ".env.local"), "TRACEPACK_TEST_CONFIG=ok\n", "utf8");
     await writeFile(
       path.join(repo, "test", "calc.test.mjs"),
-      "import { readFileSync } from 'node:fs';\nimport { add } from '../src/calc.mjs';\nif (readFileSync('node_modules/runtime-config.txt', 'utf8').trim() !== 'ok') throw new Error('bad config');\nif (add(2, 3) !== 5) throw new Error('bad add');\n",
+      "import { readFileSync } from 'node:fs';\nimport { add } from '../src/calc.mjs';\nif (!readFileSync('.env.local', 'utf8').includes('ok')) throw new Error('bad config');\nif (add(2, 3) !== 5) throw new Error('bad add');\n",
       "utf8"
     );
     await startSession(repo, "ignored-prestate-only");
     await runCommandInSession(repo, [npmCommand, "test"]);
-    await rm(path.join(repo, "node_modules"), { recursive: true, force: true });
+    await rm(path.join(repo, ".env.local"), { force: true });
     const result = await finishSession(repo);
 
     expect(result.manifest.receipt.final.ignoredFiles?.mode).toBe("not_present");
@@ -310,7 +382,7 @@ describe("integration", () => {
     expect(result.manifest.receipt.observationLimits).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: "command_prestate_ignored_paths_unobserved",
+          kind: "command_prestate_ignored_sensitive_local_inputs_unobserved",
           evidenceRef: "commands:cmd-001.gitBefore.ignoredFiles"
         })
       ])
@@ -318,6 +390,30 @@ describe("integration", () => {
 
     const html = await readFile(path.join(result.bundleDir, "report.html"), "utf8");
     expect(html).toContain("commands:cmd-001.gitBefore.ignoredFiles");
+  });
+
+  it("does not fully validate when unknown ignored paths are present", async () => {
+    const repo = await createFixtureRepo({
+      gitignore: ".tracepack/\ncustom-fixture-data/\n"
+    });
+    await mkdir(path.join(repo, "custom-fixture-data"), { recursive: true });
+    await writeFile(path.join(repo, "custom-fixture-data", "input.txt"), "unknown\n", "utf8");
+    await startSession(repo, "unknown-ignored");
+    await runCommandInSession(repo, [npmCommand, "test"]);
+    const result = await finishSession(repo);
+
+    expect(result.manifest.receipt.coveringCommandIds).toEqual(["cmd-001"]);
+    expect(result.manifest.receipt.verdict).toBe("inconclusive");
+    expect(result.manifest.receipt.observationConfidence).toBe("partial");
+    expect(result.manifest.receipt.final.ignoredFiles?.unknownCount).toBe(1);
+    expect(result.manifest.receipt.observationLimits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "ignored_unknown_paths_unobserved",
+          evidenceRef: "receipt.final.ignoredFiles"
+        })
+      ])
+    );
   });
 
   it("reports validation_stale when validation runs before the final change", async () => {
@@ -469,6 +565,26 @@ describe("integration", () => {
     expect(html).toContain("Final-State Validation Receipt");
     expect(html).toContain("validated final state");
     expect(html).toContain("Ignored-Path Observation");
+  });
+
+  it("finds the latest completed bundle for no-argument report generation", async () => {
+    const repo = await createFixtureRepo();
+    await startSession(repo, "latest-report");
+    await runCommandInSession(repo, [npmCommand, "test"]);
+    const result = await finishSession(repo);
+
+    await expect(findLatestBundleDir(repo)).resolves.toBe(result.bundleDir);
+    await expect(regenerateReport(await findLatestBundleDir(repo))).resolves.toBe(
+      path.join(result.bundleDir, "report.html")
+    );
+  });
+
+  it("does not select absent or incomplete bundles for no-argument report generation", async () => {
+    const repo = await createFixtureRepo();
+    await expect(findLatestBundleDir(repo)).rejects.toThrow("No TracePack bundles");
+
+    await startSession(repo, "incomplete-only");
+    await expect(findLatestBundleDir(repo)).rejects.toThrow("No completed TracePack bundles");
   });
 
   it("regenerates markdown and json report exports", async () => {

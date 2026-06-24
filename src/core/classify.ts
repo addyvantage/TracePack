@@ -61,6 +61,10 @@ export function classifyCommand(argv: string[]): CommandClassification {
     }
   }
 
+  if (base === "git" && args[0] === "diff" && args.includes("--check")) {
+    return "validation";
+  }
+
   if (VALIDATION_COMMANDS.has(base)) {
     if (base === "go" && args[0] !== "test") {
       return args[0] === "vet" ? "validation" : "unknown";

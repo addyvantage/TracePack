@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   validateManifest,
@@ -6,6 +6,7 @@ import {
   type RedactionReport,
   type TracePackManifest
 } from "./manifest.js";
+import { tracepackDir } from "./paths.js";
 import { renderHtmlReport } from "../report/renderHtml.js";
 import { renderMarkdownReport } from "../report/renderMarkdown.js";
 import { renderSummaryJson } from "../report/renderSummaryJson.js";
@@ -58,6 +59,46 @@ export async function regenerateReport(
 
 export async function readJson(filePath: string): Promise<unknown> {
   return JSON.parse(await readFile(filePath, "utf8")) as unknown;
+}
+
+export async function findLatestBundleDir(cwd: string): Promise<string> {
+  const root = tracepackDir(cwd);
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    throw new Error("No TracePack bundles were found in .tracepack/.");
+  }
+
+  const candidates: Array<{ bundleDir: string; finishedAtMs: number; name: string }> = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const bundleDir = path.join(root, entry.name);
+    try {
+      const manifest = validateManifest(await readJson(path.join(bundleDir, "manifest.json")));
+      validateRedactionReport(await readJson(path.join(bundleDir, "redaction-report.json")));
+      const finishedAtMs = Date.parse(manifest.finishedAt);
+      candidates.push({
+        bundleDir,
+        finishedAtMs: Number.isFinite(finishedAtMs) ? finishedAtMs : 0,
+        name: entry.name
+      });
+    } catch {
+      // Active or incomplete session directories are not report bundles.
+    }
+  }
+
+  candidates.sort(
+    (left, right) => right.finishedAtMs - left.finishedAtMs || right.name.localeCompare(left.name)
+  );
+  const latest = candidates[0];
+  if (!latest) {
+    throw new Error("No completed TracePack bundles were found in .tracepack/.");
+  }
+  return latest.bundleDir;
 }
 
 export async function writeJson(filePath: string, value: unknown): Promise<void> {

@@ -4,7 +4,9 @@ TracePack is local-first. It writes bundles to `.tracepack/<run-id>/` and does n
 prompts, transcripts, environment variable values, `.env` contents, credentials, browser sessions,
 or repository contents.
 
-Add `.tracepack/` to `.gitignore` before sharing receipts or pushing a repository.
+`tracepack start` adds `.tracepack/` to `.git/info/exclude` for the local clone when needed, so
+TracePack's own bundle directory does not contaminate receipts. This does not edit tracked source
+files. Add `.tracepack/` to `.gitignore` only if you want a shared repository ignore rule.
 `tracepack doctor` reports whether `.tracepack/` appears to be ignored by Git, but the check is best
 effort.
 

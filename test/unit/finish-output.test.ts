@@ -31,7 +31,7 @@ describe("finish output", () => {
     expect(output).toContain("Receipt meaning: Validation failed.");
     expect(output).toContain("confidence: complete");
     expect(output).toContain(
-      "Confidence meaning: TracePack observed the repository-state evidence required by the receipt model."
+      "Confidence meaning: TracePack observed the tracked/source repository-state evidence required by the receipt model"
     );
     expect(output).toContain("failed: 1");
     expect(output).toContain("timed out / errored: 1");

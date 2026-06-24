@@ -11,12 +11,17 @@
   only as excluded-evidence markers.
 - Changed files larger than the safe hashing limit, symlinks, non-files, and unreadable files are
   represented as partial observation with reasons instead of being read.
-- Git ignored files are outside TracePack's default repository-state evidence. TracePack does not
-  enumerate or hash ignored file contents by default. Ignored-path samples may include non-sensitive
-  path labels; sensitive path labels are hidden and represented by path hash plus reason.
-- A matching validation fingerprint with partial changed-content or ignored-path observation in the
-  final snapshot or validation pre-state snapshot is reported as inconclusive rather than complete
-  final-state validation.
+- Git ignored files are outside TracePack's tracked/source-state fingerprint. TracePack does not
+  read or hash ignored file contents. Ignored-path samples may include non-sensitive path labels;
+  sensitive path labels are hidden and represented by path hash plus reason.
+- Ambient ignored environment paths such as dependency folders, virtual environments, caches,
+  coverage outputs, and build outputs are reported as environment notes. Their presence does not by
+  itself make a matching successful validation inconclusive, and TracePack does not claim those
+  ignored contents were read or validated.
+- Sensitive/local ignored inputs and unknown ignored paths remain confidence-limiting. A matching
+  validation fingerprint with partial changed-content, sensitive/local ignored input limits, unknown
+  ignored path limits, or unavailable observation in the final snapshot or validation pre-state
+  snapshot is reported as inconclusive rather than complete final-state validation.
 - Command classification is deterministic and conservative.
 - Path-based test detection can include fixtures, snapshots, or helper files.
 - Redaction is best effort and cannot guarantee every sensitive value was removed.
@@ -29,4 +34,5 @@
 - `tracepack status` relies on stored session data. It does not recapture or hash the current Git
   state.
 - `.tracepack/` Git ignore detection in `doctor` is best-effort and based on Git's ignore rules for
-  the current work tree.
+  the current work tree. `tracepack start` may add `.tracepack/` to `.git/info/exclude` for the
+  local clone without editing tracked `.gitignore` files.
