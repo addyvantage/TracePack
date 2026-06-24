@@ -24,6 +24,12 @@
 - Classified `git diff --check` as deterministic validation evidence.
 - Updated the regression demo to use ignored local config for the ignored-input confidence-limit
   case.
+- Added opt-in GitHub Actions job-summary output through `tracepack report --github-summary`.
+- Added a reviewer-facing GitHub Actions reference workflow that builds TracePack from local source,
+  finishes receipts after failed validation commands, regenerates all report exports, writes the job
+  summary, and uploads the bundle as a named artifact.
+- Documented GitHub artifact contents, distribution limits, and privacy implications without
+  introducing PR comments, GitHub App behavior, hosted services, or merge gates.
 
 ## 0.6.0
 

@@ -1,4 +1,4 @@
-name: TracePack Evidence
+name: TracePack Receipt Artifact
 
 on:
   pull_request:
@@ -8,8 +8,10 @@ permissions:
   contents: read
 
 jobs:
-  TracePack:
+  tracepack-receipt:
+    name: TracePack receipt
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,57 +25,67 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # This reference workflow builds TracePack from the checked-out repository.
+      # Until TracePack package distribution is resolved for your project, vendor
+      # TracePack source or pin a trusted source install instead of assuming a
+      # global npm package exists.
       - name: Build TracePack CLI
         run: npm run build
 
-      - name: TracePack start
-        run: node dist/cli.js start --label "github-actions-${{ github.run_id }}"
+      - name: Prepare artifact name
+        id: artifact
+        shell: bash
+        run: |
+          repo="${GITHUB_REPOSITORY//\//-}"
+          short_sha="${GITHUB_SHA::7}"
+          name="tracepack-receipt-${repo}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${short_sha}"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
-      - name: TracePack run validation
+      - name: TracePack start
+        run: node dist/cli.js start --label "github-actions-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      # Replace these with your repository's real validation commands.
+      # continue-on-error lets TracePack finish and upload a receipt even when a
+      # validation command fails.
+      - name: TracePack run validation - lint
+        continue-on-error: true
+        run: node dist/cli.js run -- npm run lint
+
+      # Replace this with another real validation command for your repository.
+      - name: TracePack run validation - tests
         continue-on-error: true
         run: node dist/cli.js run -- npm test
 
-      - name: TracePack finish
+      # finish is intentionally not continue-on-error: a failed validation should
+      # still produce a receipt, but TracePack failing to create a receipt should
+      # be visible as workflow infrastructure failure.
+      - name: TracePack finish receipt
         if: always()
         run: node dist/cli.js finish
 
-      - name: Locate latest TracePack bundle
+      - name: Locate completed TracePack bundle
         if: always()
         id: bundle
         shell: bash
         run: |
-          bundle="$(ls -td .tracepack/* | head -1)"
+          bundle="$(find .tracepack -mindepth 2 -maxdepth 2 -name manifest.json -exec dirname {} \; | sort | tail -n 1)"
+          if [[ -z "$bundle" ]]; then
+            echo "No completed TracePack bundle was found." >&2
+            exit 1
+          fi
           echo "path=$bundle" >> "$GITHUB_OUTPUT"
-          echo "TRACEPACK_BUNDLE=$bundle" >> "$GITHUB_ENV"
 
-      - name: TracePack report exports
-        if: always()
-        run: node dist/cli.js report "$TRACEPACK_BUNDLE" --format all
-
-      - name: TracePack policy assertion
+      - name: Generate TracePack reports and job summary
         if: always()
         run: >-
-          node dist/cli.js assert "$TRACEPACK_BUNDLE" --require-verdict validated_final_state
-          --require-confidence complete --summary-out "$TRACEPACK_BUNDLE/assertion.json"
+          node dist/cli.js report "${{ steps.bundle.outputs.path }}" --format all --github-summary
+          --artifact-name "${{ steps.artifact.outputs.name }}"
 
-      - name: TracePack job summary
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo "### TracePack evidence"
-            echo ""
-            echo "Uploaded artifact: TracePack-evidence-${{ github.run_id }}"
-            echo ""
-            echo "The bundle contains manifest.json, redaction-report.json, report.html, report.md, summary.json, and assertion.json when assertion ran."
-            echo ""
-            echo "TracePack assertion checks observed evidence only; it does not prove correctness, security, approval, or merge readiness."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload TracePack bundle
+      - name: Upload TracePack receipt artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TracePack-evidence-${{ github.run_id }}
+          name: ${{ steps.artifact.outputs.name }}
           path: ${{ steps.bundle.outputs.path }}
           if-no-files-found: error
+          retention-days: 14

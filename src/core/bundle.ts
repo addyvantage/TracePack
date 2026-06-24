@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   validateManifest,
@@ -10,12 +10,18 @@ import { tracepackDir } from "./paths.js";
 import { renderHtmlReport } from "../report/renderHtml.js";
 import { renderMarkdownReport } from "../report/renderMarkdown.js";
 import { renderSummaryJson } from "../report/renderSummaryJson.js";
+import { renderGithubStepSummary } from "../report/renderGithubSummary.js";
 
 export type ReportFormat = "html" | "markdown" | "json" | "all";
 
 export type RegenerateReportOptions = {
   format?: ReportFormat;
   out?: string;
+};
+
+export type GithubStepSummaryOptions = {
+  summaryPath?: string;
+  artifactName?: string;
 };
 
 export async function writeBundle(
@@ -45,10 +51,7 @@ export async function regenerateReport(
   bundleDir: string,
   options?: RegenerateReportOptions
 ): Promise<string | string[]> {
-  const manifest = validateManifest(await readJson(path.join(bundleDir, "manifest.json")));
-  const redactionReport = validateRedactionReport(
-    await readJson(path.join(bundleDir, "redaction-report.json"))
-  );
+  const { manifest, redactionReport } = await readBundle(bundleDir);
   const format = options?.format ?? "html";
   const outputs = await writeReportOutputs(bundleDir, manifest, redactionReport, {
     format,
@@ -57,8 +60,51 @@ export async function regenerateReport(
   return options ? outputs : (outputs[0] ?? path.join(bundleDir, "report.html"));
 }
 
+export async function appendGithubStepSummary(
+  bundleDir: string,
+  options: GithubStepSummaryOptions = {}
+): Promise<string> {
+  const summaryPath = githubStepSummaryPath(options.summaryPath);
+  const { manifest } = await readBundle(bundleDir);
+  const existing = await readFileIfPresent(summaryPath);
+  const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
+  await appendFile(
+    summaryPath,
+    `${prefix}${renderGithubStepSummary(manifest, { artifactName: options.artifactName })}`,
+    "utf8"
+  );
+  return summaryPath;
+}
+
+export function githubStepSummaryPath(explicitPath?: string): string {
+  const summaryPath = explicitPath ?? process.env.GITHUB_STEP_SUMMARY;
+  if (!summaryPath?.trim()) {
+    throw new Error("--github-summary requires GITHUB_STEP_SUMMARY to be set by GitHub Actions.");
+  }
+  return summaryPath;
+}
+
+export async function readBundle(bundleDir: string): Promise<{
+  manifest: TracePackManifest;
+  redactionReport: RedactionReport;
+}> {
+  const manifest = validateManifest(await readJson(path.join(bundleDir, "manifest.json")));
+  const redactionReport = validateRedactionReport(
+    await readJson(path.join(bundleDir, "redaction-report.json"))
+  );
+  return { manifest, redactionReport };
+}
+
 export async function readJson(filePath: string): Promise<unknown> {
   return JSON.parse(await readFile(filePath, "utf8")) as unknown;
+}
+
+async function readFileIfPresent(filePath: string): Promise<string> {
+  try {
+    return await readFile(filePath, "utf8");
+  } catch {
+    return "";
+  }
 }
 
 export async function findLatestBundleDir(cwd: string): Promise<string> {

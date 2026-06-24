@@ -36,3 +36,14 @@
 - `.tracepack/` Git ignore detection in `doctor` is best-effort and based on Git's ignore rules for
   the current work tree. `tracepack start` may add `.tracepack/` to `.git/info/exclude` for the
   local clone without editing tracked `.gitignore` files.
+- GitHub Actions support is a report/artifact handoff only. TracePack does not provide a GitHub App,
+  PR comment bot, hosted dashboard, or automatic merge gate.
+- `tracepack report --github-summary` writes only when explicitly requested and when
+  `$GITHUB_STEP_SUMMARY` is available. The summary is a compact view of the existing receipt bundle,
+  not a separate evidence source.
+- CI artifacts are stored by GitHub Actions, not by TracePack. People with access to workflow
+  artifacts may be able to inspect command strings, captured output summaries, changed-file paths,
+  Git metadata, and receipt files.
+- A green GitHub Actions job that generated a TracePack artifact means the receipt workflow
+  completed. It does not prove correctness, security, approval, merge readiness, or policy
+  compliance.

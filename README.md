@@ -50,12 +50,16 @@ node dist/cli.js run -- npm test
   `report.html`.
 - Optional local report exports for PR/CI consumption: Markdown (`report.md`) and stable summary
   JSON (`summary.json`).
+- Optional GitHub Actions job-summary Markdown when `tracepack report --github-summary` is run in a
+  workflow step with `$GITHUB_STEP_SUMMARY` available.
 
 ## What TracePack Does Not Capture
 
 TracePack does not capture entire repository contents, full raw diffs by default, prompt
 transcripts, environment variable values, `.env` contents, SSH keys, API keys, browser cookies,
-credential stores, or unrelated workspace contents. Redaction is best effort and not a guarantee.
+credential stores, or unrelated workspace contents. Redaction is best effort and not a guarantee. If
+a workflow uploads `.tracepack/` as a CI artifact, people with access to that workflow artifact can
+inspect command argv, captured output summaries, file paths, Git metadata, and receipt reports.
 
 ## What It Proves
 
@@ -83,7 +87,7 @@ tracepack start [--label <name>]
 tracepack run [--timeout <seconds>] -- <command...>
 tracepack status
 tracepack finish [--label <name>]
-tracepack report [bundle-dir] [--format html|markdown|json|all] [--out <path>]
+tracepack report [bundle-dir] [--format html|markdown|json|all] [--out <path>] [--github-summary] [--artifact-name <name>]
 tracepack assert <bundle-dir> [--require-verdict <verdict>] [--require-confidence <confidence>] [--allow-warnings] [--json] [--summary-out <path>] [--quiet]
 tracepack clean [--force]
 tracepack doctor
@@ -115,6 +119,11 @@ whether the active-session pointer is stale. `tracepack clean` removes only
 a CI-friendly `tracepack.summary.v0.1` JSON summary, or `--format all` to write `report.html`,
 `report.md`, and `summary.json` in the bundle directory. `--out <path>` is available for single
 formats only.
+
+In GitHub Actions, `tracepack report --format all --github-summary` appends a compact receipt
+summary to `$GITHUB_STEP_SUMMARY`. This is explicitly opt-in and fails if GitHub does not provide
+that summary file. Use `--artifact-name <name>` to make the summary point reviewers to the uploaded
+receipt artifact.
 
 `tracepack assert <bundle-dir>` evaluates the bundle's manifest against an explicit local policy and
 exits non-zero when it fails. By default it requires `validated_final_state`, `complete` receipt
@@ -157,6 +166,14 @@ upload, OAuth, and generic AI review.
 Release note: the unscoped npm package name `tracepack` may be unavailable or owned elsewhere. This
 repository is not published to npm by these instructions; publishing may require a scoped package
 name or ownership resolution.
+
+## GitHub Actions
+
+`examples/github-actions/tracepack.yml` is a reference workflow for generating a TracePack receipt
+artifact and GitHub job summary from this repository or another repository that vendors/builds the
+TracePack CLI. It is not a GitHub App, does not post PR comments, and uses only `contents: read`.
+The uploaded artifact should contain `report.html`, `report.md`, `summary.json`, `manifest.json`,
+and `redaction-report.json`; open `report.html` first for offline review.
 
 ## License
 

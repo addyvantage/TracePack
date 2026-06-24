@@ -27,3 +27,15 @@ Captured stdout and stderr summaries are truncated and redacted for common secre
 as API keys, GitHub tokens, AWS access keys, assignment-style secrets, and private key blocks.
 
 Redaction is best effort, not a guarantee. Avoid printing secrets during validation commands.
+
+## GitHub Actions Artifacts
+
+TracePack does not upload artifacts by itself. If a GitHub Actions workflow uploads `.tracepack/`,
+GitHub stores the receipt data as a workflow artifact. People with access to that artifact may be
+able to inspect command strings, captured output summaries, changed-file paths, Git branch/SHA
+metadata, report files, and redaction metadata.
+
+`tracepack report --github-summary` writes a compact Markdown summary to `$GITHUB_STEP_SUMMARY` only
+when explicitly requested. The summary omits raw stdout/stderr and hides sensitive-looking command
+arguments such as `.env.local`, but the full artifact remains the complete receipt handoff.
+Redaction is still best effort, so validation commands should avoid printing secrets.
