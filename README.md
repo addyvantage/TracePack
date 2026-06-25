@@ -7,7 +7,10 @@ Your coding agent says tests passed. Did it validate the final code state?
 TracePack is a local-first CLI that records deterministic, redacted receipts of whether successful
 validation was observed for your final repository state. No accounts, no upload.
 
-Start with the synthetic sample reports:
+![Tracepack comparison: validation evidence incomplete beside final-state validation observed](.github/assets/tracepack/report-compare.png)
+
+Left: successful validation was observed before the last repository change. Right: successful
+validation was observed for the final captured state.
 
 - [Stale validation sample](docs/assets/stale-report.html)
 - [Final-state validation observed sample](docs/assets/validated-report.html)

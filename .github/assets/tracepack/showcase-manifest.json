@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "tracepack.showcase-capture.v0.1",
+  "captureCommandVersion": "1",
+  "browser": {
+    "productVersion": "Google Chrome 149.0.7827.196"
+  },
+  "reports": [
+    {
+      "kind": "stale",
+      "source": "docs/assets/stale-report.html",
+      "output": ".github/assets/tracepack/report-stale.png",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "sourceSha256": "bc38dddae3ef97f72b741ef1107658dc75482b1a0d9355f8f5a8f007b385315c",
+      "outputSha256": "397a3250651e7159572ffb88362b5c8e1447e8cf099a4a78114c55b738fc9041"
+    },
+    {
+      "kind": "validated",
+      "source": "docs/assets/validated-report.html",
+      "output": ".github/assets/tracepack/report-validated.png",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "sourceSha256": "26e74fe8c05ce9663973bb567f2c96d2e9c335d90ce6daab26e718c1fb7407f8",
+      "outputSha256": "ac90e86efd1c866cb582b4fb3aae83d13c1de2c427b18c3e7826a1117518f224"
+    }
+  ],
+  "comparison": {
+    "output": ".github/assets/tracepack/report-compare.png",
+    "inputs": [
+      ".github/assets/tracepack/report-stale.png",
+      ".github/assets/tracepack/report-validated.png"
+    ],
+    "viewport": {
+      "width": 1600,
+      "height": 900
+    },
+    "outputSha256": "a36a585c7482e2685a5ae21078453e4060bd3bc2c343d653553c78cbae52f717"
+  }
+}
