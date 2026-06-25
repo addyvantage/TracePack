@@ -7,6 +7,8 @@ import {
   regenerateReport,
   type ReportFormat
 } from "../core/bundle.js";
+import { normalizeRelativePath } from "../core/paths.js";
+import { arrow, glyph, shouldUseColor } from "../core/terminal.js";
 
 const REPORT_FORMATS = new Set(["html", "markdown", "json", "all"]);
 
@@ -35,20 +37,7 @@ export function registerReport(program: Command): void {
     .option("--artifact-name <name>", "artifact name to mention in --github-summary output")
     .action(async (bundleDir: string | undefined, options: ReportCommandOptions) => {
       const result = await runReportCommand(process.cwd(), bundleDir, options);
-
-      if (!bundleDir) {
-        console.log(`Using latest TracePack bundle: ${result.resolvedBundleDir}`);
-      }
-      if (result.outputs.length === 1) {
-        console.log(`Report regenerated: ${result.outputs[0]}`);
-      } else {
-        console.log(
-          `Reports regenerated:\n${result.outputs.map((output) => `- ${output}`).join("\n")}`
-        );
-      }
-      if (result.githubSummaryPath) {
-        console.log(`GitHub job summary appended: ${result.githubSummaryPath}`);
-      }
+      console.log(formatReportCommandOutput(result, process.cwd(), { color: shouldUseColor() }));
     });
 }
 
@@ -89,4 +78,29 @@ function parseReportFormat(format: string): ReportFormat {
     return format as ReportFormat;
   }
   throw new Error(`Unsupported report format: ${format}. Use html, markdown, json, or all.`);
+}
+
+export function formatReportCommandOutput(
+  result: ReportCommandResult,
+  cwd: string,
+  options: { color?: boolean; unicode?: boolean } = {}
+): string {
+  const lines = [
+    `${glyph("observed", options)} Report regenerated`,
+    `  bundle       ${relativePath(cwd, result.resolvedBundleDir)}`,
+    result.outputs.length === 1
+      ? `  output       ${relativePath(cwd, result.outputs[0] as string)}`
+      : `  outputs      ${result.outputs.map((output) => relativePath(cwd, output)).join(", ")}`,
+    result.githubSummaryPath
+      ? `  github      ${relativePath(cwd, result.githubSummaryPath)}`
+      : undefined,
+    "",
+    `  ${arrow(options)} open report.html from disk`
+  ];
+
+  return lines.filter((line): line is string => line !== undefined).join("\n");
+}
+
+function relativePath(cwd: string, absolutePath: string): string {
+  return normalizeRelativePath(path.relative(cwd, absolutePath));
 }

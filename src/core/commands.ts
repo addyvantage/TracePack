@@ -91,12 +91,10 @@ export async function runAndCaptureCommand(
     timers.timeout.unref();
 
     child.stdout.on("data", (chunk: Buffer) => {
-      process.stdout.write(chunk);
       appendCapture(stdout, chunk);
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
-      process.stderr.write(chunk);
       appendCapture(stderr, chunk);
     });
 
