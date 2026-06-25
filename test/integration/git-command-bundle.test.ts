@@ -657,8 +657,8 @@ describe("integration", () => {
     const reportPath = await regenerateReport(bundleDir);
     const html = await readFile(reportPath, "utf8");
 
-    expect(html).toContain("Final-State Validation Receipt");
-    expect(html).toContain("legacy v0.1 manifest");
+    expect(html).toContain("Final-state receipt detail");
+    expect(html).toContain("legacy manifest");
   });
 
   it("regenerates reports for v0.2 manifests with a legacy confidence note", async () => {
@@ -683,7 +683,7 @@ describe("integration", () => {
     const reportPath = await regenerateReport(bundleDir);
     const html = await readFile(reportPath, "utf8");
 
-    expect(html).toContain("Final-State Validation Receipt");
+    expect(html).toContain("Final-state receipt detail");
     expect(html).toContain("Legacy v0.2 receipt did not capture observation-confidence details.");
   });
 
@@ -709,9 +709,9 @@ describe("integration", () => {
     const reportPath = await regenerateReport(bundleDir);
     const html = await readFile(reportPath, "utf8");
 
-    expect(html).toContain("Final-State Validation Receipt");
-    expect(html).toContain("validated final state");
-    expect(html).toContain("Ignored-Path Observation");
+    expect(html).toContain("Final-state validation observed");
+    expect(html).toContain("validated_final_state");
+    expect(html).toContain("Confidence detail");
   });
 
   it("finds the latest completed bundle for no-argument report generation", async () => {
