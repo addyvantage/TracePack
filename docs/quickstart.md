@@ -33,7 +33,11 @@ To remove only the active-session pointer without deleting bundles or session da
 node dist/cli.js clean --force
 ```
 
-TracePack records observed evidence. It does not approve the change or prove correctness.
+Use `node dist/cli.js finish --verbose` when you need full receipt and confidence detail in the
+terminal. The default finish output is intentionally compact and points to the static HTML report.
+
+Tracepack records observed local evidence. It does not prove code correctness, test sufficiency,
+security, or merge approval.
 
 ## GitHub Actions Summary
 

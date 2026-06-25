@@ -14,15 +14,23 @@
 
 3. Open the generated reports printed by the script.
 
-4. Show the key contrast:
+4. Show the key contrast printed by the demo:
 
-   - missing-validation report: no successful validation command was observed after the final
-     observed code change;
-   - corrected report: validation was observed after the final code change;
+   - Stale: successful validation was observed before the final repository change.
+   - Corrected: successful validation was observed for the final captured state.
    - partial-observation report: sensitive changed input was excluded, so TracePack does not
      overclaim complete validation;
    - ignored-input report: ignored runtime input was present or changed, so the receipt remains
      limited instead of reporting complete final-state validation.
 
-5. State the limitation plainly: TracePack reports observed local evidence. It does not prove the
-   code is correct or secure, and it does not approve PRs.
+5. Open the two public showcase reports when you need a stable side-by-side:
+
+   ```bash
+   npm run showcase:generate
+   ```
+
+   - `docs/assets/stale-report.html`
+   - `docs/assets/validated-report.html`
+
+6. State the limitation plainly: Tracepack records observed local evidence. It does not prove code
+   correctness, test sufficiency, security, or merge approval.

@@ -20,6 +20,8 @@ const partial = await runPartialObservationDemo();
 const ignoredInput = await runIgnoredInputDemo();
 
 console.log("TracePack demo completed.");
+console.log("Stale: successful validation was observed before the final repository change.");
+console.log("Corrected: successful validation was observed for the final captured state.");
 printDemoResult("Missing-validation", missing);
 printDemoResult("Corrected", corrected);
 printDemoResult("Partial-observation", partial);
@@ -41,7 +43,7 @@ async function runMissingValidationDemo() {
     "utf8"
   );
   const finishOutput = await execNode(["finish"], repo);
-  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout);
+  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout, repo);
   const manifest = await readManifest(bundleDir);
   if (manifest.receipt?.verdict === "validated_final_state") {
     throw new Error("Expected missing-validation demo not to validate the final state.");
@@ -62,7 +64,7 @@ async function runCorrectedDemo() {
   );
   await execNode(["run", "--", npmCommand, "test"], repo);
   const finishOutput = await execNode(["finish"], repo);
-  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout);
+  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout, repo);
   const manifest = await readManifest(bundleDir);
   if (manifest.receipt?.verdict !== "validated_final_state") {
     throw new Error(
@@ -81,7 +83,7 @@ async function runPartialObservationDemo() {
   await writeFile(path.join(repo, ".env"), "SECRET=demo-redacted-by-exclusion\n", "utf8");
   await execNode(["run", "--", npmCommand, "test"], repo);
   const finishOutput = await execNode(["finish"], repo);
-  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout);
+  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout, repo);
   const manifest = await readManifest(bundleDir);
   if (manifest.receipt?.verdict === "validated_final_state") {
     throw new Error("Expected partial-observation demo not to overclaim final-state validation.");
@@ -106,7 +108,7 @@ async function runIgnoredInputDemo() {
   await execNode(["run", "--", npmCommand, "test"], repo);
   await writeFile(path.join(repo, ".env.local"), "TRACEPACK_DEMO_MODE=changed\n", "utf8");
   const finishOutput = await execNode(["finish"], repo);
-  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout);
+  const bundleDir = latestBundleDirFromOutput(finishOutput.stdout, repo);
   const manifest = await readManifest(bundleDir);
   if (manifest.receipt?.verdict === "validated_final_state") {
     throw new Error("Expected ignored-input demo not to report validated_final_state.");
@@ -184,12 +186,13 @@ async function exec(command, args, cwd) {
   }
 }
 
-function latestBundleDirFromOutput(stdout) {
-  const match = stdout.match(/Bundle written:\s*(.+)$/m);
+function latestBundleDirFromOutput(stdout, repo) {
+  const match = stdout.match(/^\s*report\s+(.+report\.html)$/m);
   if (!match?.[1]) {
     throw new Error(`Could not locate bundle directory in output:\n${stdout}`);
   }
-  return match[1].trim();
+  const reportPath = path.resolve(repo, match[1].trim());
+  return path.dirname(reportPath);
 }
 
 async function readManifest(bundleDir) {
