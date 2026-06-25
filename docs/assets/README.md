@@ -12,10 +12,27 @@ Regenerate the files from the repository root:
 npm run showcase:generate
 ```
 
-The generator uses the built local renderer in `dist/`, so it runs `npm run build` first through the
-npm script. The sample data uses fixed timestamps, fake run IDs, fake fingerprints, fake paths, and
-no real local machine paths.
+Capture README screenshots from those real reports:
 
-No PNG screenshots are committed by default. To capture screenshots reproducibly, regenerate these
-files and open them from disk in a browser or browser automation tool at a fixed viewport such as
-1280x720.
+```bash
+npm run showcase:capture
+npm run showcase:verify
+```
+
+The screenshot capture script regenerates the reports first, then uses a locally installed
+Chromium-compatible browser in headless mode with a clean temporary profile. Browser discovery uses
+`TRACEPACK_BROWSER_BIN` first, then common macOS Chrome/Chromium/Edge locations, then supported
+commands on `PATH`.
+
+The browser captures are direct first-viewport screenshots of the actual static `report.html`
+output. They are not mockups, generated images, edited composites, or dashboard-style promotional
+artwork. The comparison PNG is a temporary local HTML page that places the two captured report PNGs
+side by side with factual captions only.
+
+The sample data uses fixed timestamps, fake run IDs, fake fingerprints, fake paths, and no real
+local machine paths. `npm run showcase:verify` checks required files, static HTML hygiene, source
+and PNG SHA-256 provenance, PNG dimensions through macOS `sips`, and npm package exclusion for the
+README PNGs.
+
+The output is visually deterministic for a fixed browser and viewport, but PNG bytes may differ
+across browser products or versions.
