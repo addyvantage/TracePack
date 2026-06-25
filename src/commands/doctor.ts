@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Command } from "commander";
+import { arrow, glyph, shouldUseColor } from "../core/terminal.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -40,57 +41,50 @@ export function registerDoctor(program: Command): void {
       const tracepackIgnored = await checkTracepackIgnoredByGit(process.cwd());
 
       console.log(
-        formatDoctorOutput({
-          nodeVersion: process.version,
-          platform: process.platform,
-          arch: process.arch,
-          cwd: process.cwd(),
-          tools: [git, npm, pnpm],
-          gitRepository: repo,
-          tracepackIgnored
-        })
+        formatDoctorOutput(
+          {
+            nodeVersion: process.version,
+            platform: process.platform,
+            arch: process.arch,
+            cwd: process.cwd(),
+            tools: [git, npm, pnpm],
+            gitRepository: repo,
+            tracepackIgnored
+          },
+          { color: shouldUseColor() }
+        )
       );
     });
 }
 
-export function formatDoctorOutput(output: DoctorOutput): string {
+export function formatDoctorOutput(
+  output: DoctorOutput,
+  options: { color?: boolean; unicode?: boolean } = {}
+): string {
+  const tools = output.tools
+    .map((check) => `${check.name} ${check.available ? "ok" : "missing"}`)
+    .join(", ");
   const lines = [
-    "TracePack doctor",
-    "",
-    "Runtime:",
-    `  Node: ${output.nodeVersion}`,
-    `  Platform: ${output.platform} ${output.arch}`,
-    `  Current folder: ${output.cwd}`,
-    "",
-    "Tools:",
-    ...output.tools.map(
-      (check) =>
-        `  ${check.name}: ${check.available ? (check.version ?? "available") : "not available"}`
-    ),
-    "",
-    "Repository:",
-    `  Git repository: ${output.gitRepository}`,
-    `  .tracepack ignored by Git: ${output.tracepackIgnored.state}`
+    `${glyph("neutral", options)} TracePack doctor`,
+    `  runtime     Node ${output.nodeVersion} · ${output.platform} ${output.arch}`,
+    `  folder      ${output.cwd}`,
+    `  git         ${output.gitRepository}`,
+    `  local       .tracepack ignored by Git: ${output.tracepackIgnored.state}`,
+    `  tools       ${tools}`,
+    "  privacy     does not read .env files, credentials, or browser profiles."
   ];
 
   if (output.tracepackIgnored.state === "no") {
     lines.push(
-      "  Local exclude: `tracepack start` will add `.tracepack/` to `.git/info/exclude` for this clone without editing tracked files."
-    );
-    lines.push(
-      "  Shared ignore: add `.tracepack/` to .gitignore only if you want the ignore rule tracked for the repository."
+      "  local       tracepack start will add .tracepack/ to .git/info/exclude for this clone"
     );
   }
 
   if (output.tracepackIgnored.state === "unavailable" && output.tracepackIgnored.reason) {
-    lines.push(`  .tracepack ignore check: ${output.tracepackIgnored.reason}`);
+    lines.push(`  local       ${output.tracepackIgnored.reason}`);
   }
 
-  lines.push(
-    "",
-    "Privacy:",
-    "  doctor does not read .env files, credentials, or browser profiles."
-  );
+  lines.push("", `  ${arrow(options)} tracepack start`);
 
   return lines.join("\n");
 }

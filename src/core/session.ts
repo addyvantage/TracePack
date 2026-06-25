@@ -15,7 +15,7 @@ import {
   type TracePackManifestV04
 } from "./manifest.js";
 import { createFinalStateReceipt } from "./receipt.js";
-import { createRedactionReport } from "./redaction.js";
+import { createRedactionReport, quoteCommandArgv, sanitizeCommandArgv } from "./redaction.js";
 import { captureGitStateSnapshot, createGitStateSnapshot } from "./state.js";
 import {
   activeSessionPath,
@@ -319,11 +319,18 @@ export async function finishSession(
       ...(command.gitAfter?.git.excludedEvidence ?? [])
     ])
   ];
+  const argumentRedactions = session.commands.map(
+    (command) => command.argumentRedaction ?? sanitizeCommandArgv(command.argv).redaction
+  );
   const redactionReport = createRedactionReport({
     runId: session.runId,
     outputs,
-    excludedEvidence
+    excludedEvidence,
+    argumentRedactions
   });
+  const reproductionMayRequireLocalValues = argumentRedactions.some(
+    (redaction) => redaction.reproductionMayRequireLocalValues
+  );
   const manifest: TracePackManifestV04 = {
     schemaVersion: MANIFEST_SCHEMA_VERSION,
     TracePackVersion: TRACEPACK_VERSION,
@@ -349,8 +356,14 @@ export async function finishSession(
     redaction: redactionReport.summary,
     reproduction: {
       commands: session.commands.map((command) => quoteCommand(command.argv)),
+      reproductionMayRequireLocalValues,
       notes: [
         "Run these commands only after reviewing them yourself.",
+        ...(reproductionMayRequireLocalValues
+          ? [
+              "This command contains redacted arguments and may require locally supplied values before it can be rerun."
+            ]
+          : []),
         "TracePack records observed local evidence and does not replace CI or human review.",
         "The bundle intentionally omits raw repository contents and full raw diffs by default."
       ]
@@ -383,7 +396,7 @@ async function saveSessionWithoutActivePointer(session: SessionState): Promise<v
 }
 
 export function quoteCommand(argv: string[]): string {
-  return argv.map((arg) => (/[ \t"'`]/.test(arg) ? JSON.stringify(arg) : arg)).join(" ");
+  return quoteCommandArgv(sanitizeCommandArgv(argv).argv);
 }
 
 export function localBundleDir(cwd: string, runId: string): string {

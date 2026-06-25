@@ -5,7 +5,7 @@ import {
   formatReceiptVerdictMeaning
 } from "../core/format.js";
 import type { FinalStateReceipt, TracePackManifest } from "../core/manifest.js";
-import { classifyIgnoredPath } from "../core/paths.js";
+import { safeCommandText } from "../core/redaction.js";
 
 export const GITHUB_SUMMARY_DISCLAIMER =
   "TracePack records local validation evidence. It does not prove correctness, security, approval, or merge readiness.";
@@ -228,31 +228,6 @@ function commandResult(command: TracePackManifest["commands"][number]): string {
 
 function commandInterrupted(command: TracePackManifest["commands"][number]): boolean {
   return command.signal !== null || /timed out|interrupted/i.test(command.error ?? "");
-}
-
-function safeCommandText(argv: string[]): string {
-  return argv.map(safeCommandArg).map(quoteArg).join(" ");
-}
-
-function safeCommandArg(arg: string): string {
-  if (looksLikeSensitivePathArg(arg)) {
-    return "[sensitive-arg-hidden]";
-  }
-  return arg;
-}
-
-function looksLikeSensitivePathArg(arg: string): boolean {
-  const candidates = arg
-    .split(/[\s="'`(),;]+/)
-    .flatMap((part) => part.split("="))
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  return candidates.some((candidate) => classifyIgnoredPath(candidate) === "sensitive_local_input");
-}
-
-function quoteArg(arg: string): string {
-  return /[ \t"'`|]/.test(arg) ? JSON.stringify(arg) : arg;
 }
 
 function table(rows: Array<[string, string]>): string {

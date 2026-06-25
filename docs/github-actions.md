@@ -66,9 +66,8 @@ treated like GitHub Actions.
 
 The job summary includes the receipt verdict, confidence, final observed Git state, run ID, branch,
 SHA, command counts, command result rows, evidence limitations, environment notes, artifact handoff
-note, and TracePack disclaimer. It does not include raw stdout/stderr. Sensitive-looking command
-arguments such as `.env.local` are hidden in the summary, but the full artifact still contains the
-recorded manifest and command metadata.
+note, and TracePack disclaimer. It does not include raw stdout/stderr. Command arguments are
+sanitized with the same best-effort rules used for the full reports and manifest.
 
 ## Artifact Contents
 
@@ -91,16 +90,17 @@ workflow steps you configure.
 
 Receipt artifacts and job summaries can expose:
 
-- command strings and command classifications;
+- sanitized command strings and command classifications;
 - captured stdout/stderr summaries in the full artifact;
 - changed-file paths and Git metadata;
 - redaction replacement counts and excluded-evidence reasons;
 - ignored-path relevance counts and non-sensitive ignored-path samples.
 
 TracePack does not read ignored sensitive file contents, and sensitive ignored path labels are
-hidden in receipt observation samples. Redaction is best effort, not a guarantee. Avoid printing
-secrets during validation commands. Anyone with access to workflow artifacts may be able to inspect
-the uploaded receipt data.
+hidden in receipt observation samples. Command arguments and output summaries are sanitized before
+persistence, but redaction is best effort, not a guarantee. Avoid printing secrets or passing them
+directly as command-line arguments during validation commands. Anyone with access to workflow
+artifacts may be able to inspect the uploaded receipt data.
 
 Partial or inconclusive evidence usually means TracePack could not fully observe some relevant
 tracked/source state, sensitive/local ignored input, unknown ignored path, or final fingerprint. A

@@ -47,11 +47,21 @@ export const OutputSummarySchema = z.object({
   replacements: z.array(RedactionReplacementSchema)
 });
 
+export const CommandArgumentRedactionSchema = z.object({
+  argumentsRedacted: z.boolean(),
+  redactedArgumentCount: z.number().int().nonnegative(),
+  reproductionMayRequireLocalValues: z.boolean(),
+  replacements: z.array(RedactionReplacementSchema)
+});
+
 export const RedactionSummarySchema = z.object({
   applied: z.boolean(),
   replacementCount: z.number().int().nonnegative(),
   excludedEvidenceCount: z.number().int().nonnegative(),
   outputTruncated: z.boolean(),
+  argumentReplacementCount: z.number().int().nonnegative().optional(),
+  redactedArgumentCount: z.number().int().nonnegative().optional(),
+  reproductionMayRequireLocalValues: z.boolean().optional(),
   notes: z.array(z.string())
 });
 
@@ -164,6 +174,7 @@ export const GitStateSnapshotSchema = z.object({
 export const CommandEvidenceSchema = z.object({
   id: z.string(),
   argv: z.array(z.string()).min(1),
+  argumentRedaction: CommandArgumentRedactionSchema.optional(),
   startedAt: z.string(),
   endedAt: z.string(),
   durationMs: z.number().int().nonnegative(),
@@ -265,6 +276,7 @@ const ManifestBaseSchema = z.object({
   redaction: RedactionSummarySchema,
   reproduction: z.object({
     commands: z.array(z.string()),
+    reproductionMayRequireLocalValues: z.boolean().optional(),
     notes: z.array(z.string())
   }),
   limitations: z.array(z.string())
@@ -310,6 +322,7 @@ export type EvidenceLabel = z.infer<typeof EvidenceLabelSchema>;
 export type CommandClassification = z.infer<typeof CommandClassificationSchema>;
 export type SafePathDescriptor = z.infer<typeof SafePathDescriptorSchema>;
 export type OutputSummary = z.infer<typeof OutputSummarySchema>;
+export type CommandArgumentRedaction = z.infer<typeof CommandArgumentRedactionSchema>;
 export type RedactionReplacement = z.infer<typeof RedactionReplacementSchema>;
 export type RedactionSummary = z.infer<typeof RedactionSummarySchema>;
 export type ExcludedEvidence = z.infer<typeof ExcludedEvidenceSchema>;

@@ -1,181 +1,175 @@
 # TracePack
 
-TracePack captures deterministic local evidence around an AI-assisted code change and renders a
-redacted reproducible review bundle showing what changed, what validation ran, whether successful
-validation covered the final observed repository state, how complete that state observation was,
-what was not observed, and what needs human review.
+## Local evidence of whether your tests actually covered your final code.
 
-TracePack does not prove code is correct. It does not prove security. It does not approve PRs. It
-observes local evidence only.
+Your coding agent says tests passed. Did it validate the final code state?
+
+TracePack is a local-first CLI that records deterministic, redacted receipts of whether successful
+validation was observed for your final repository state. No accounts, no upload.
+
+Start with the synthetic sample reports:
+
+- [Stale validation sample](docs/assets/stale-report.html)
+- [Final-state validation observed sample](docs/assets/validated-report.html)
+- [How the sample assets are generated](docs/assets/README.md)
+
+## Terminal Example
+
+```text
+⚠ Validation evidence incomplete
+  Successful validation was observed, but the repository changed afterward.
+  The final state was not observed by validation.
+
+  validation   observed    npm test · exit 0
+  final state  f9a14c      changed after last validation
+  changed files 1          src/calc.mjs
+  needs review 1          TP001 Successful validation was observed, but not for the final repository state.
+
+  report       .tracepack/<run-id>/report.html
+  → re-run validation against the final state, then tracepack finish
+```
 
 ## 30-Second Quickstart
+
+From this repository:
 
 ```bash
 npm install
 npm run build
 node dist/cli.js doctor
 node dist/cli.js start --label local-review
-node dist/cli.js status
 # make or review local changes
 node dist/cli.js run -- npm test
 node dist/cli.js finish
 ```
 
-Open `.tracepack/<run-id>/report.html` directly from disk.
+Open `.tracepack/<run-id>/report.html` directly from disk. The report is static HTML with inline
+CSS; it does not need a server, account, browser extension, CDN, or external model API.
 
-For a one-command bundle:
+For a one-command local receipt:
 
 ```bash
 node dist/cli.js run -- npm test
 ```
 
-## What TracePack Captures
+## Stale-Validation Walkthrough
 
-- Git repository detection, branch, HEAD before and after, dirty-state status, changed-file
-  metadata, changed-file counts, diff statistics, and deterministic state fingerprints.
-- Commands run through `tracepack run -- <command...>`, including argv, timestamps, duration, exit
-  code, conservative command classification, pre/post command Git state snapshots, and
-  redacted/truncated stdout and stderr summaries.
-- A final-state validation receipt showing whether a successful validation command's pre-state
-  fingerprint matched the final observed repository-state fingerprint.
-- Receipt confidence showing whether changed-file content observation was complete, partial, or
-  unavailable. Large files, symlinks, non-files, unreadable files, excluded sensitive paths, and
-  confidence-limiting ignored inputs are surfaced without reading secrets.
-- Ignored-path relevance: ordinary ambient environment paths such as `node_modules/`, `.venv/`, and
-  caches are reported as environment notes, while sensitive/local ignored inputs and unknown ignored
-  paths still limit receipt confidence.
-- Deterministic warnings such as stale, failed, missing, or inconclusive final-state validation and
-  test-related file changes.
-- A local `.tracepack/<run-id>/` bundle with `manifest.json`, `redaction-report.json`, and
-  `report.html`.
-- Optional local report exports for PR/CI consumption: Markdown (`report.md`) and stable summary
-  JSON (`summary.json`).
-- Optional GitHub Actions job-summary Markdown when `tracepack report --github-summary` is run in a
-  workflow step with `$GITHUB_STEP_SUMMARY` available.
+TracePack’s core question is not “did tests pass at some point?” It is “was successful validation
+observed for the final captured repository state?”
 
-## What TracePack Does Not Capture
+1. Start a session.
+2. Change code.
+3. Run validation through TracePack.
+4. Change code again.
+5. Finish the session.
 
-TracePack does not capture entire repository contents, full raw diffs by default, prompt
-transcripts, environment variable values, `.env` contents, SSH keys, API keys, browser cookies,
-credential stores, or unrelated workspace contents. Redaction is best effort and not a guarantee. If
-a workflow uploads `.tracepack/` as a CI artifact, people with access to that workflow artifact can
-inspect command argv, captured output summaries, file paths, Git metadata, and receipt reports.
+That produces a stale-validation receipt: successful validation was observed, but the final state
+was not observed by validation. Re-run validation after the final change and finish again to produce
+`Final-state validation observed`.
 
-## What It Proves
+## What TracePack Observes
 
-TracePack can support narrow observed claims, such as:
+- Git repository detection, branch, HEAD, dirty state, changed-file metadata, diff statistics, and
+  deterministic state fingerprints.
+- Commands run through `tracepack run -- <command...>`, including sanitized argv, timestamps,
+  duration, exit code, conservative command classification, and pre/post command Git state.
+- Redacted and bounded stdout/stderr summaries for captured commands.
+- A final-state receipt comparing validation command pre-state fingerprints with the final captured
+  repository-state fingerprint.
+- Deterministic warnings for stale, failed, missing, or inconclusive final-state validation and
+  test-related review triggers.
+- A local `.tracepack/<run-id>/` bundle containing `manifest.json`, `redaction-report.json`, and
+  `report.html`, with optional Markdown and JSON exports.
 
-- a specific command was run through TracePack;
-- that command exited with a specific code at a specific time;
-- Git observed a specific final changed-file set;
-- a successful validation command was observed against the same local state fingerprint as the final
-  observed repository state with complete overall receipt observation for both the final state and
-  the matching validation pre-state;
-- a validation fingerprint match was limited by partial observation, or that validation was stale,
-  failed, missing, or inconclusive.
-- ambient ignored environment paths were present but not read, hashed, or validated.
+## What TracePack Does Not Prove
 
-## What It Does Not Prove
+Tracepack records observed local evidence. It does not prove code correctness, test sufficiency,
+security, or merge approval.
 
-TracePack does not prove correctness, security, merge readiness, policy compliance, developer
-intent, or that validation did not happen elsewhere.
+TracePack is not an AI code reviewer, security scanner, CI replacement, PR approver, merge gate,
+hosted dashboard, or agent transcript recorder.
 
-## CLI
+## Privacy And Local-First Boundaries
+
+TracePack does not upload source code, prompts, transcripts, environment variable values, `.env`
+contents, SSH keys, API keys, browser cookies, credential stores, or unrelated workspace contents.
+
+Command arguments and captured output summaries are sanitized before persistence using best-effort
+redaction. Avoid passing secrets directly as command-line arguments when safer alternatives exist.
+
+On first `tracepack start` inside a Git repo, TracePack may add `.tracepack/` to the local
+`.git/info/exclude` file for this clone. It does not edit tracked `.gitignore` automatically.
+
+## Demo And Showcase
+
+Run the deterministic demo:
+
+```bash
+npm run demo:smoke
+```
+
+The demo creates local fixture repositories under `examples/demo-regression/.work/` and preserves
+four outcomes: stale validation, final-state validation observed, partial observation, and ignored
+local input.
+
+Regenerate the public showcase reports:
+
+```bash
+npm run showcase:generate
+```
+
+The showcase uses synthetic data only and writes self-contained HTML reports to `docs/assets/`.
+
+## CLI Reference
 
 ```bash
 tracepack start [--label <name>]
 tracepack run [--timeout <seconds>] -- <command...>
 tracepack status
-tracepack finish [--label <name>]
+tracepack finish [--label <name>] [--verbose]
 tracepack report [bundle-dir] [--format html|markdown|json|all] [--out <path>] [--github-summary] [--artifact-name <name>]
 tracepack assert <bundle-dir> [--require-verdict <verdict>] [--require-confidence <confidence>] [--allow-warnings] [--json] [--summary-out <path>] [--quiet]
 tracepack clean [--force]
 tracepack doctor
 ```
 
-The CLI uses local Git and user-approved commands. It does not require a remote repository,
-accounts, auth, a database, Docker, a browser extension, or external model APIs.
-
-On first `tracepack start` inside a Git repo, TracePack idempotently adds `.tracepack/` to the local
-`.git/info/exclude` file when needed. It does not edit tracked `.gitignore` automatically.
-
 `tracepack run` stops the child command after 300 seconds by default. Use `--timeout <seconds>`
-before `--` to set a different positive-integer timeout for that command. Timed-out commands
-preserve captured output so far, are marked as failed command evidence, and do not count as
-successful validation.
+before `--` to set a different positive-integer timeout.
 
-Command classification is deterministic and conservative. Common validation commands include test,
-lint, typecheck, and focused local checks such as `git diff --check`; classification does not imply
-correctness, coverage, or merge readiness.
+`tracepack report [bundle-dir]` regenerates local report exports. `--format all` writes
+`report.html`, `report.md`, and `summary.json`. `--github-summary` appends a compact Markdown
+summary to `$GITHUB_STEP_SUMMARY` when explicitly used in GitHub Actions.
 
-`tracepack status` shows whether an active session exists, what commands have been captured, and
-whether the active-session pointer is stale. `tracepack clean` removes only
-`.tracepack/active-session.json`; it does not delete completed bundles or session files. Use
-`--force` for non-interactive recovery.
+`tracepack assert <bundle-dir>` evaluates a local policy against a generated bundle and exits
+non-zero when the observed evidence does not match that policy.
 
-`tracepack report [bundle-dir]` defaults to the original HTML behavior and regenerates
-`report.html`. When run without a bundle path inside a repo, it selects the latest completed
-`.tracepack/` bundle. Use `--format markdown` for a PR-friendly Markdown report, `--format json` for
-a CI-friendly `tracepack.summary.v0.1` JSON summary, or `--format all` to write `report.html`,
-`report.md`, and `summary.json` in the bundle directory. `--out <path>` is available for single
-formats only.
+## Contributing
 
-In GitHub Actions, `tracepack report --format all --github-summary` appends a compact receipt
-summary to `$GITHUB_STEP_SUMMARY`. This is explicitly opt-in and fails if GitHub does not provide
-that summary file. Use `--artifact-name <name>` to make the summary point reviewers to the uploaded
-receipt artifact.
-
-`tracepack assert <bundle-dir>` evaluates the bundle's manifest against an explicit local policy and
-exits non-zero when it fails. By default it requires `validated_final_state`, `complete` receipt
-confidence, and zero warnings. Use `--require-verdict` with a comma-separated or repeated set of
-accepted receipt verdicts, `--require-confidence complete|partial|unavailable`, `--allow-warnings`
-when warnings should not fail the policy, `--json` for machine-readable output, and
-`--summary-out <path>` to write `tracepack.assertion.v0.1` JSON for CI artifacts. A passing
-assertion means only that the observed evidence matched the configured policy; it does not prove
-correctness, security, approval, policy compliance, or merge readiness.
-
-## Demo
-
-After building, run:
-
-```bash
-npm run demo:smoke
-```
-
-The demo creates local fixture repositories under `examples/demo-regression/.work/`, generates a
-stale-validation bundle, a corrected bundle where validation happens after the final observed
-change, a partial-observation bundle, and an ignored local-input bundle that does not overclaim
-validation when ignored local config changes.
-
-## Development
+Use Node.js 20.11 or newer.
 
 ```bash
 npm install
 npm run typecheck
 npm run lint
 npm run format:check
-npm run test
+npm test
 npm run build
-npm run verify
+npm run demo:smoke
 ```
 
-This repository uses TypeScript, Node.js 20+, Commander, Zod, Vitest, ESLint, and Prettier. The
-local-first foundation intentionally avoids React, Next.js, a hosted backend, cloud storage, source
-upload, OAuth, and generic AI review.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the contributor path and
+[docs/architecture.md](docs/architecture.md) for the local receipt model.
 
-Release note: the unscoped npm package name `tracepack` may be unavailable or owned elsewhere. This
-repository is not published to npm by these instructions; publishing may require a scoped package
-name or ownership resolution.
+## Roadmap
 
-## GitHub Actions
+- Keep the report static, local, printable, and inspectable from `file://`.
+- Harden deterministic command classification and receipt confidence for more ecosystems.
+- Improve CI artifact handoff while keeping uploads explicit and user-controlled.
+- Improve fixture coverage for partial repository observation and redaction edge cases.
 
-`examples/github-actions/tracepack.yml` is a reference workflow for generating a TracePack receipt
-artifact and GitHub job summary from this repository or another repository that vendors/builds the
-TracePack CLI. It is not a GitHub App, does not post PR comments, and uses only `contents: read`.
-The uploaded artifact should contain `report.html`, `report.md`, `summary.json`, `manifest.json`,
-and `redaction-report.json`; open `report.html` first for offline review.
+No hosted service, user accounts, OAuth flow, GitHub App, score, approval signal, or agent
+transcript capture is on the public-alpha roadmap.
 
 ## License
 
-MIT is used for low-friction early adoption. Apache-2.0 remains a reasonable future alternative if
-patent clarity becomes important.
+MIT. See [LICENSE](LICENSE).

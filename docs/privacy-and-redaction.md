@@ -28,14 +28,29 @@ as API keys, GitHub tokens, AWS access keys, assignment-style secrets, and priva
 
 Redaction is best effort, not a guarantee. Avoid printing secrets during validation commands.
 
+## Command Argument Redaction
+
+TracePack executes the command with the original argv supplied to `tracepack run`, then sanitizes
+the argv representation before writing session state, manifests, reports, summaries, and
+reproduction instructions. The sanitizer handles common token-like values, assignment forms such as
+`--token=<value>`, split forms such as `--token <value>`, bearer authorization headers, recognized
+secret-like query parameters, and sensitive/local path arguments.
+
+Commands containing redacted arguments may not be directly reproducible from saved artifacts.
+Reports include a note when locally supplied values may be required before rerunning a reproduction
+command.
+
+Argument redaction is best effort, not a guarantee. Prefer safer local configuration mechanisms over
+passing secrets directly as command-line arguments.
+
 ## GitHub Actions Artifacts
 
 TracePack does not upload artifacts by itself. If a GitHub Actions workflow uploads `.tracepack/`,
 GitHub stores the receipt data as a workflow artifact. People with access to that artifact may be
-able to inspect command strings, captured output summaries, changed-file paths, Git branch/SHA
-metadata, report files, and redaction metadata.
+able to inspect sanitized command strings, captured output summaries, changed-file paths, Git
+branch/SHA metadata, report files, and redaction metadata.
 
 `tracepack report --github-summary` writes a compact Markdown summary to `$GITHUB_STEP_SUMMARY` only
-when explicitly requested. The summary omits raw stdout/stderr and hides sensitive-looking command
-arguments such as `.env.local`, but the full artifact remains the complete receipt handoff.
-Redaction is still best effort, so validation commands should avoid printing secrets.
+when explicitly requested. The summary omits raw stdout/stderr and uses the same best-effort command
+argument sanitizer as the full reports. The full artifact remains the complete receipt handoff.
+Redaction is still best effort, so validation commands should avoid printing or passing secrets.

@@ -17,15 +17,18 @@ describe("doctor output", () => {
       tracepackIgnored: { state: "no" }
     });
 
-    expect(output).toContain("Runtime:");
-    expect(output).toContain("  Node: v24.14.0");
-    expect(output).toContain("Tools:");
-    expect(output).toContain("  pnpm: not available");
-    expect(output).toContain("Repository:");
-    expect(output).toContain("  .tracepack ignored by Git: no");
-    expect(output).toContain("Local exclude: `tracepack start` will add `.tracepack/`");
-    expect(output).toContain("Shared ignore: add `.tracepack/` to .gitignore only if");
-    expect(output).toContain("Privacy:");
-    expect(output).toContain("doctor does not read .env files, credentials, or browser profiles.");
+    expect(output).toContain("· TracePack doctor");
+    expect(output).toContain("runtime     Node v24.14.0 · darwin arm64");
+    expect(output).toContain("folder      /tmp/repo");
+    expect(output).toContain("git         observed");
+    expect(output).toContain("local       .tracepack ignored by Git: no");
+    expect(output).toContain("tools       git ok, npm ok, pnpm missing");
+    expect(output).toContain(
+      "privacy     does not read .env files, credentials, or browser profiles."
+    );
+    expect(output).toContain(
+      "local       tracepack start will add .tracepack/ to .git/info/exclude"
+    );
+    expect(output).toContain("→ tracepack start");
   });
 });

@@ -24,6 +24,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepack": "npm run build",
+    "showcase:generate": "npm run build && node scripts/generate-showcase.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",

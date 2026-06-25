@@ -86,7 +86,7 @@ describe("GitHub job summary rendering", () => {
     expect(summary).toContain("### Evidence limitations");
     expect(summary).toContain("ignored_sensitive_local_inputs_unobserved");
     expect(summary).toContain("sensitive or local ignored input path");
-    expect(summary).toContain("[sensitive-arg-hidden]");
+    expect(summary).toContain("[REDACTED:sensitive_path_argument]");
     expect(summary).not.toContain(".env.local");
     expect(summary).not.toContain("TRACEPACK_FAKE_CONFIG");
     expect(summary).not.toContain("secret");

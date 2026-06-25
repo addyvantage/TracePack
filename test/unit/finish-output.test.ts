@@ -4,7 +4,7 @@ import { validateManifest, type TracePackManifestV04 } from "../../src/core/mani
 import { createRedactionReport } from "../../src/core/redaction.js";
 
 describe("finish output", () => {
-  it("summarizes receipt, command, warning, and bundle details", () => {
+  it("summarizes the finish verdict compactly with one report path", () => {
     const manifest = sampleManifest();
     const output = formatFinishOutput({
       session: {
@@ -26,25 +26,23 @@ describe("finish output", () => {
       bundleDir: "/tmp/repo/.tracepack/finish-demo"
     });
 
-    expect(output).toContain("TracePack session finished");
-    expect(output).toContain("verdict: validation_failed");
-    expect(output).toContain("Receipt meaning: Validation failed.");
-    expect(output).toContain("confidence: complete");
+    expect(output.split("\n").length).toBeLessThanOrEqual(12);
+    expect(output).toMatch(/^✗ Validation command failed/);
     expect(output).toContain(
-      "Confidence meaning: TracePack observed the tracked/source repository-state evidence required by the receipt model"
+      "A validation command was observed for the final captured repository state, but it did not complete successfully."
     );
-    expect(output).toContain("failed: 1");
-    expect(output).toContain("timed out / errored: 1");
+    expect(output).toContain("validation   failed");
+    expect(output).toContain("npm test · signal SIGTERM");
+    expect(output).toContain("final state  abcdef");
     expect(output).toContain("src/app.ts");
     expect(output).toContain("TP001 Validation was observed for the final repository state");
-    expect(output).toContain("cmd-001: Command timed out after 1 seconds.");
-    expect(output).toContain(
-      "Next: review the failed validation output and rerun validation after fixes."
-    );
-    expect(output).toContain("TracePack records observed local evidence.");
+    expect(output).toContain("report       .tracepack/finish-demo/report.html");
+    expect(countOccurrences(output, ".tracepack/finish-demo/report.html")).toBe(1);
+    expect(output).toContain("→ review the failed validation output");
+    expect(output).not.toContain("TracePack records observed local evidence.");
   });
 
-  it("shows confidence notes when receipt confidence is partial", () => {
+  it("keeps detailed confidence notes behind verbose output", () => {
     const base = sampleManifest();
     const manifest = validateManifest({
       ...base,
@@ -60,6 +58,47 @@ describe("finish output", () => {
       }
     }) as TracePackManifestV04;
 
+    const output = formatFinishOutput(
+      {
+        session: {
+          schemaVersion: "tracepack.session.v0.1",
+          runId: manifest.runId,
+          label: manifest.label,
+          startedAt: manifest.startedAt,
+          cwd: "/tmp/repo",
+          initialGit: manifest.git.before,
+          initialState: manifest.receipt.baseline,
+          commands: manifest.commands
+        },
+        manifest,
+        redactionReport: createRedactionReport({
+          runId: manifest.runId,
+          outputs: [],
+          excludedEvidence: []
+        }),
+        bundleDir: "/tmp/repo/.tracepack/finish-demo"
+      },
+      { verbose: true }
+    );
+
+    expect(output).toContain("Receipt confidence: partial");
+    expect(output).toContain("Confidence notes:");
+    expect(output).toContain("Ignored paths were observed but not read.");
+    expect(output).toContain("Next: review observation limits, then rerun validation");
+  });
+
+  it("sanitizes command argv and errors in finish terminal output", () => {
+    const githubToken = `${["gh", "p_"].join("")}${"a".repeat(32)}`;
+    const manifest = validateManifest({
+      ...sampleManifest(),
+      commands: [
+        {
+          ...sampleManifest().commands[0],
+          argv: ["npm", "test", "--token", githubToken],
+          error: `token=${githubToken}`
+        }
+      ]
+    }) as TracePackManifestV04;
     const output = formatFinishOutput({
       session: {
         schemaVersion: "tracepack.session.v0.1",
@@ -80,12 +119,8 @@ describe("finish output", () => {
       bundleDir: "/tmp/repo/.tracepack/finish-demo"
     });
 
-    expect(output).toContain("Receipt confidence: partial");
-    expect(output).toContain("Confidence notes:");
-    expect(output).toContain("Ignored paths were observed but not read.");
-    expect(output).toContain(
-      "Next: review observation limits and ignored or sensitive paths before relying on this receipt."
-    );
+    expect(output).not.toContain(githubToken);
+    expect(output).toContain("[REDACTED:github_token_like]");
   });
 });
 
@@ -218,4 +253,8 @@ function redaction(): TracePackManifestV04["redaction"] {
     outputTruncated: false,
     notes: []
   };
+}
+
+function countOccurrences(value: string, needle: string): number {
+  return value.split(needle).length - 1;
 }
