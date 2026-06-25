@@ -4,6 +4,7 @@ import {
   formatObservationConfidenceMeaning,
   formatReceiptVerdictMeaning
 } from "../core/format.js";
+import { safeCommandText, sanitizeCommandString } from "../core/redaction.js";
 
 export function renderMarkdownReport(
   manifest: TracePackManifest,
@@ -209,7 +210,7 @@ function validationCommands(manifest: TracePackManifest): string {
       ["ID", "Command", "Exit", "Evidence", "Pre-state"],
       commands.map((command) => [
         inlineCode(command.id),
-        inlineCode(command.argv.join(" ")),
+        inlineCode(safeCommandText(command.argv)),
         command.exitCode === null ? "not started" : inlineCode(`${command.exitCode}`),
         inlineCode(command.evidence),
         inlineCode(command.gitBefore?.fingerprint?.short ?? "not captured")
@@ -261,6 +262,12 @@ function redactionSummary(redactionReport: RedactionReport): string {
     table([
       ["Applied", redactionReport.summary.applied ? "yes" : "no"],
       ["Replacement count", `${redactionReport.summary.replacementCount}`],
+      ["Argument replacements", `${redactionReport.summary.argumentReplacementCount ?? 0}`],
+      ["Redacted arguments", `${redactionReport.summary.redactedArgumentCount ?? 0}`],
+      [
+        "Reproduction requires local values",
+        redactionReport.summary.reproductionMayRequireLocalValues ? "yes" : "no"
+      ],
       ["Excluded evidence", `${redactionReport.summary.excludedEvidenceCount}`],
       ["Output truncated", redactionReport.summary.outputTruncated ? "yes" : "no"]
     ]),
@@ -276,7 +283,7 @@ function reproductionCommands(manifest: TracePackManifest): string {
     "These commands were observed by TracePack. Re-run only commands you approve in your own environment.",
     codeBlock(
       manifest.reproduction.commands.length > 0
-        ? manifest.reproduction.commands
+        ? manifest.reproduction.commands.map((command) => sanitizeCommandString(command))
         : ["No commands were captured."]
     ),
     manifest.reproduction.notes.length > 0

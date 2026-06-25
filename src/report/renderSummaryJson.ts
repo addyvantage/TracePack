@@ -67,6 +67,9 @@ export type TracePackSummaryJson = {
   redaction: {
     applied: boolean;
     replacementCount: number;
+    argumentReplacementCount: number;
+    redactedArgumentCount: number;
+    reproductionMayRequireLocalValues: boolean;
     excludedEvidenceCount: number;
     outputTruncated: boolean;
     notes: string[];
@@ -102,6 +105,10 @@ export function renderSummaryJson(
     redaction: {
       applied: redactionReport.summary.applied,
       replacementCount: redactionReport.summary.replacementCount,
+      argumentReplacementCount: redactionReport.summary.argumentReplacementCount ?? 0,
+      redactedArgumentCount: redactionReport.summary.redactedArgumentCount ?? 0,
+      reproductionMayRequireLocalValues:
+        redactionReport.summary.reproductionMayRequireLocalValues ?? false,
       excludedEvidenceCount: redactionReport.summary.excludedEvidenceCount,
       outputTruncated: redactionReport.summary.outputTruncated,
       notes: redactionReport.notes

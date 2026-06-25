@@ -10,6 +10,7 @@ import {
   formatObservationConfidenceMeaning,
   formatReceiptVerdictMeaning
 } from "../core/format.js";
+import { safeCommandText, sanitizeCommandString } from "../core/redaction.js";
 import { reportStyles } from "./styles.js";
 
 export function renderHtmlReport(
@@ -105,7 +106,7 @@ export function renderHtmlReport(
   <section>
     <h2>Reproduction Instructions</h2>
     <p class="muted">These commands were observed by TracePack. Re-run only commands you approve in your own environment.</p>
-    <pre>${escapeHtml(manifest.reproduction.commands.join("\n") || "No commands were captured.")}</pre>
+    <pre>${escapeHtml(reproductionCommandText(manifest.reproduction.commands))}</pre>
     <ul>${manifest.reproduction.notes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}</ul>
   </section>
 
@@ -114,6 +115,12 @@ export function renderHtmlReport(
     <div class="grid">
       ${metric("Applied", redactionReport.summary.applied ? "Yes" : "No")}
       ${metric("Replacement Count", `${redactionReport.summary.replacementCount}`)}
+      ${metric("Argument Replacements", `${redactionReport.summary.argumentReplacementCount ?? 0}`)}
+      ${metric("Redacted Arguments", `${redactionReport.summary.redactedArgumentCount ?? 0}`)}
+      ${metric(
+        "Reproduction Requires Local Values",
+        redactionReport.summary.reproductionMayRequireLocalValues ? "Yes" : "No"
+      )}
       ${metric("Excluded Evidence", `${redactionReport.summary.excludedEvidenceCount}`)}
       ${metric("Output Truncated", redactionReport.summary.outputTruncated ? "Yes" : "No")}
     </div>
@@ -272,7 +279,7 @@ function commandsTable(commands: TracePackManifest["commands"]): string {
     ${commands
       .map(
         (command) => `<tr>
-      <td><code>${escapeHtml(command.argv.join(" "))}</code></td>
+      <td><code>${escapeHtml(safeCommandText(command.argv))}</code></td>
       <td>${escapeHtml(commandExitText(command))}</td>
       <td>${command.durationMs} ms</td>
       <td>${escapeHtml(command.classification)}</td>
@@ -285,6 +292,12 @@ function commandsTable(commands: TracePackManifest["commands"]): string {
       .join("")}
   </tbody>
 </table>`;
+}
+
+function reproductionCommandText(commands: string[]): string {
+  return commands.length > 0
+    ? commands.map((command) => sanitizeCommandString(command)).join("\n")
+    : "No commands were captured.";
 }
 
 function receiptSection(manifest: TracePackManifest): string {

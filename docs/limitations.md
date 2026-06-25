@@ -42,8 +42,8 @@
   `$GITHUB_STEP_SUMMARY` is available. The summary is a compact view of the existing receipt bundle,
   not a separate evidence source.
 - CI artifacts are stored by GitHub Actions, not by TracePack. People with access to workflow
-  artifacts may be able to inspect command strings, captured output summaries, changed-file paths,
-  Git metadata, and receipt files.
+  artifacts may be able to inspect sanitized command strings, captured output summaries,
+  changed-file paths, Git metadata, and receipt files.
 - A green GitHub Actions job that generated a TracePack artifact means the receipt workflow
   completed. It does not prove correctness, security, approval, merge readiness, or policy
   compliance.

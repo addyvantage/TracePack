@@ -33,9 +33,9 @@ node dist/cli.js run -- npm test
 
 - Git repository detection, branch, HEAD before and after, dirty-state status, changed-file
   metadata, changed-file counts, diff statistics, and deterministic state fingerprints.
-- Commands run through `tracepack run -- <command...>`, including argv, timestamps, duration, exit
-  code, conservative command classification, pre/post command Git state snapshots, and
-  redacted/truncated stdout and stderr summaries.
+- Commands run through `tracepack run -- <command...>`, including sanitized argv, timestamps,
+  duration, exit code, conservative command classification, pre/post command Git state snapshots,
+  and redacted/truncated stdout and stderr summaries.
 - A final-state validation receipt showing whether a successful validation command's pre-state
   fingerprint matched the final observed repository-state fingerprint.
 - Receipt confidence showing whether changed-file content observation was complete, partial, or
@@ -57,9 +57,11 @@ node dist/cli.js run -- npm test
 
 TracePack does not capture entire repository contents, full raw diffs by default, prompt
 transcripts, environment variable values, `.env` contents, SSH keys, API keys, browser cookies,
-credential stores, or unrelated workspace contents. Redaction is best effort and not a guarantee. If
-a workflow uploads `.tracepack/` as a CI artifact, people with access to that workflow artifact can
-inspect command argv, captured output summaries, file paths, Git metadata, and receipt reports.
+credential stores, or unrelated workspace contents. Command arguments and captured output summaries
+are sanitized before persistence using best-effort redaction, not a guarantee. Avoid passing secrets
+directly as command-line arguments when safer alternatives exist. If a workflow uploads
+`.tracepack/` as a CI artifact, people with access to that workflow artifact can inspect sanitized
+command argv, captured output summaries, file paths, Git metadata, and receipt reports.
 
 ## What It Proves
 

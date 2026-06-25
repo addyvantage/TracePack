@@ -1,10 +1,16 @@
 # Reproduction Model
 
-TracePack preserves the commands it observed as argv lists and renders shell-readable reproduction
-guidance. It does not replay commands automatically and does not claim commands are safe to rerun.
+TracePack executes the original argv supplied to `tracepack run`, then preserves a sanitized argv
+representation and renders shell-readable reproduction guidance from that sanitized representation.
+It does not replay commands automatically and does not claim commands are safe to rerun.
 
 Review every command before rerunning it. TracePack only knows what it observed through
 `tracepack run [--timeout <seconds>] -- <command...>`.
+
+When command arguments are redacted, the saved reproduction command may require locally supplied
+values before it can be rerun. TracePack does not store the original redacted value for convenience.
+Argument redaction is best effort, not a guarantee; avoid passing secrets directly as command-line
+arguments when safer alternatives exist.
 
 `tracepack run` applies a 300-second timeout by default. A timed-out command remains part of the
 local evidence bundle, including captured stdout and stderr so far, but it is failed command

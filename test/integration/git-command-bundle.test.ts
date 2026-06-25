@@ -16,7 +16,11 @@ import {
   startSession
 } from "../../src/core/session.js";
 import { validateManifest } from "../../src/core/manifest.js";
-import { findLatestBundleDir, regenerateReport } from "../../src/core/bundle.js";
+import {
+  appendGithubStepSummary,
+  findLatestBundleDir,
+  regenerateReport
+} from "../../src/core/bundle.js";
 import { createRedactionReport } from "../../src/core/redaction.js";
 import { activeSessionPath, runDirectory } from "../../src/core/paths.js";
 
@@ -145,6 +149,149 @@ describe("integration", () => {
     );
     expect(manifest.commands).toHaveLength(1);
     expect(manifest.schemaVersion).toBe("tracepack.manifest.v0.4");
+  });
+
+  it("executes raw argv but stores and renders only sanitized command arguments", async () => {
+    const repo = await createFixtureRepo();
+    const session = await startSession(repo, "argv-redaction");
+    const openAiKey = fakeOpenAiKey("a");
+    const githubAssigned = fakeGithubToken("b");
+    const githubSplit = fakeGithubToken("c");
+    const bearerValue = fakeBearerValue("d");
+    const queryToken = fakeQueryToken("e");
+    const rawValues = [openAiKey, githubAssigned, githubSplit, bearerValue, queryToken];
+    const script = [
+      "const args = process.argv.slice(1);",
+      "const hasOpenAi = args.some((arg) => arg.startsWith('s' + 'k-') && arg.length > 20);",
+      "const hasAssignedGithub = args.some((arg) => arg.startsWith('--token=' + 'gh' + 'p_'));",
+      "const splitIndex = args.indexOf('--token');",
+      "const hasSplitGithub = splitIndex >= 0 && args[splitIndex + 1]?.startsWith('gh' + 'p_');",
+      "const hasBearer = args.some((arg) => arg.startsWith('Authorization: Bearer bearer-'));",
+      "const hasUrlToken = args.some((arg) => arg.includes('access_token=query_') && arg.includes('&ok=1'));",
+      "const hasPlainArg = args.includes('plain-arg');",
+      "if (!hasOpenAi || !hasAssignedGithub || !hasSplitGithub || !hasBearer || !hasUrlToken || !hasPlainArg) process.exit(9);"
+    ].join("\n");
+
+    const captured = await runCommandInSession(repo, [
+      process.execPath,
+      "-e",
+      script,
+      openAiKey,
+      `--token=${githubAssigned}`,
+      "--token",
+      githubSplit,
+      `Authorization: Bearer ${bearerValue}`,
+      `https://example.invalid/deploy?access_token=${queryToken}&ok=1`,
+      "plain-arg"
+    ]);
+
+    expect(captured.command.exitCode).toBe(0);
+    expect(JSON.stringify(captured.command)).not.toContain(openAiKey);
+    expect(captured.command.argv).toEqual(
+      expect.arrayContaining([
+        "[REDACTED:openai_api_key_like]",
+        "--token=[REDACTED:github_token_like]",
+        "[REDACTED:github_token_like]",
+        "Authorization: Bearer [REDACTED:authorization_bearer_token_like]",
+        "https://example.invalid/deploy?access_token=[REDACTED:assignment_secret_like]&ok=1",
+        "plain-arg"
+      ])
+    );
+    expect(captured.command.argumentRedaction).toEqual(
+      expect.objectContaining({
+        argumentsRedacted: true,
+        redactedArgumentCount: expect.any(Number),
+        reproductionMayRequireLocalValues: true
+      })
+    );
+
+    const active = await inspectActiveSession(repo);
+    expect(active.state).toBe("active");
+    const status = formatStatusInspection(active, repo);
+    const sessionJson = await readFile(
+      path.join(runDirectory(repo, session.runId), "session.json"),
+      "utf8"
+    );
+    for (const raw of rawValues) {
+      expect(status).not.toContain(raw);
+      expect(sessionJson).not.toContain(raw);
+    }
+    expect(status).toContain("[REDACTED:openai_api_key_like]");
+    expect(status).toContain("--token=[REDACTED:github_token_like]");
+
+    const result = await finishSession(repo);
+    await regenerateReport(result.bundleDir, { format: "all" });
+    const githubSummaryDir = await mkdtemp(path.join(os.tmpdir(), "TracePack-github-summary-"));
+    tempRoots.push(githubSummaryDir);
+    const githubSummaryPath = path.join(githubSummaryDir, "summary.md");
+    await appendGithubStepSummary(result.bundleDir, {
+      summaryPath: githubSummaryPath,
+      artifactName: "tracepack-redaction-test"
+    });
+
+    const artifactPaths = [
+      path.join(result.bundleDir, "session.json"),
+      path.join(result.bundleDir, "manifest.json"),
+      path.join(result.bundleDir, "redaction-report.json"),
+      path.join(result.bundleDir, "report.html"),
+      path.join(result.bundleDir, "report.md"),
+      path.join(result.bundleDir, "summary.json"),
+      githubSummaryPath
+    ];
+    const artifactTexts = await Promise.all(
+      artifactPaths.map(async (artifactPath) => readFile(artifactPath, "utf8"))
+    );
+    const combinedArtifacts = artifactTexts.join("\n");
+
+    for (const raw of rawValues) {
+      for (const artifact of artifactTexts) {
+        expect(artifact).not.toContain(raw);
+      }
+    }
+    expect(combinedArtifacts).toContain("[REDACTED:openai_api_key_like]");
+    expect(combinedArtifacts).toContain("--token=[REDACTED:github_token_like]");
+    expect(combinedArtifacts).toContain(
+      "Authorization: Bearer [REDACTED:authorization_bearer_token_like]"
+    );
+    expect(combinedArtifacts).toContain("access_token=[REDACTED:assignment_secret_like]");
+    expect(combinedArtifacts).toContain("plain-arg");
+    expect(combinedArtifacts).toContain(
+      "This command contains redacted arguments and may require locally supplied values before it can be rerun."
+    );
+
+    const manifest = validateManifest(
+      JSON.parse(await readFile(path.join(result.bundleDir, "manifest.json"), "utf8"))
+    );
+    const redactionReport = JSON.parse(
+      await readFile(path.join(result.bundleDir, "redaction-report.json"), "utf8")
+    ) as {
+      summary: {
+        argumentReplacementCount?: number;
+        redactedArgumentCount?: number;
+        reproductionMayRequireLocalValues?: boolean;
+      };
+      replacements: Array<{ pattern: string; count: number }>;
+    };
+
+    expect(manifest.commands[0]?.argumentRedaction).toEqual(
+      expect.objectContaining({
+        argumentsRedacted: true,
+        reproductionMayRequireLocalValues: true
+      })
+    );
+    expect(manifest.reproduction.reproductionMayRequireLocalValues).toBe(true);
+    expect(manifest.reproduction.commands[0]).toContain("[REDACTED:openai_api_key_like]");
+    expect(redactionReport.summary.argumentReplacementCount).toBeGreaterThanOrEqual(5);
+    expect(redactionReport.summary.redactedArgumentCount).toBeGreaterThanOrEqual(5);
+    expect(redactionReport.summary.reproductionMayRequireLocalValues).toBe(true);
+    expect(redactionReport.replacements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ pattern: "openai_api_key_like" }),
+        expect.objectContaining({ pattern: "github_token_like" }),
+        expect.objectContaining({ pattern: "authorization_bearer_token_like" }),
+        expect.objectContaining({ pattern: "assignment_secret_like" })
+      ])
+    );
   });
 
   it("reports no active session through session inspection and status output", async () => {
@@ -774,4 +921,20 @@ async function exec(command: string, args: string[], cwd: string): Promise<void>
     timeout: 30_000,
     windowsHide: true
   });
+}
+
+function fakeOpenAiKey(fill: string): string {
+  return `${["s", "k-"].join("")}${fill.repeat(32)}`;
+}
+
+function fakeGithubToken(fill: string): string {
+  return `${["gh", "p_"].join("")}${fill.repeat(32)}`;
+}
+
+function fakeBearerValue(fill: string): string {
+  return `bearer-${fill.repeat(24)}`;
+}
+
+function fakeQueryToken(fill: string): string {
+  return `query_${fill.repeat(24)}`;
 }

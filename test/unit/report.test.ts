@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderHtmlReport } from "../../src/report/renderHtml.js";
+import { renderGithubStepSummary } from "../../src/report/renderGithubSummary.js";
 import { renderMarkdownReport } from "../../src/report/renderMarkdown.js";
 import { renderSummaryJson, SUMMARY_SCHEMA_VERSION } from "../../src/report/renderSummaryJson.js";
 import { createRedactionReport } from "../../src/core/redaction.js";
@@ -117,6 +118,36 @@ describe("report rendering", () => {
     );
     expect(summary.finalState.changedFileCount).toBe(0);
     expect(JSON.stringify(summary)).not.toContain("RAW_OUTPUT_SHOULD_NOT_APPEAR");
+  });
+
+  it("sanitizes raw command arguments while rendering reports", () => {
+    const githubToken = fakeGithubToken("a");
+    const manifest = validateManifest({
+      ...sampleNoValidationReceiptManifest(),
+      commands: [
+        {
+          ...sampleNoValidationReceiptManifest().commands[0],
+          argv: ["deploy", "--token", githubToken]
+        }
+      ],
+      reproduction: {
+        commands: [`deploy --token ${githubToken}`],
+        notes: []
+      }
+    });
+    const redactionReport = createRedactionReport({
+      runId: manifest.runId,
+      outputs: [],
+      excludedEvidence: []
+    });
+    const html = renderHtmlReport(manifest, redactionReport);
+    const markdown = renderMarkdownReport(manifest, redactionReport);
+    const githubSummary = renderGithubStepSummary(manifest);
+
+    for (const rendered of [html, markdown, githubSummary]) {
+      expect(rendered).not.toContain(githubToken);
+      expect(rendered).toContain("[REDACTED:github_token_like]");
+    }
   });
 
   it("counts commands with errors and no exit code as failed in json summaries", () => {
@@ -322,4 +353,8 @@ function warning(): TracePackManifest["warnings"][number] {
     humanReview: "Run validation after the final change.",
     label: "needs_human_review"
   };
+}
+
+function fakeGithubToken(fill: string): string {
+  return `${["gh", "p_"].join("")}${fill.repeat(32)}`;
 }

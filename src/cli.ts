@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { TRACEPACK_VERSION } from "./core/manifest.js";
+import { sanitizeCommandString } from "./core/redaction.js";
 import { registerAssert } from "./commands/assert.js";
 import { registerClean } from "./commands/clean.js";
 import { registerDoctor } from "./commands/doctor.js";
@@ -32,6 +33,6 @@ try {
   await program.parseAsync(process.argv);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(`TracePack error: ${message}`);
+  console.error(`TracePack error: ${sanitizeCommandString(message)}`);
   process.exitCode = 1;
 }

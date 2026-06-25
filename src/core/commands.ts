@@ -2,7 +2,12 @@ import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { classifyCommand, evidenceForCommand } from "./classify.js";
 import type { CommandEvidence } from "./manifest.js";
-import { combineRedactionSummaries, summarizeOutput } from "./redaction.js";
+import {
+  combineRedactionSummaries,
+  redactText,
+  sanitizeCommandArgv,
+  summarizeOutput
+} from "./redaction.js";
 
 const STORED_OUTPUT_BYTES = 48_000;
 const COMMAND_TIMEOUT_GRACE_MS = 1_000;
@@ -112,25 +117,33 @@ export async function runAndCaptureCommand(
   const stdoutSummary = summarizeOutput(captureText(stdout), undefined, stdout.totalBytes);
   const stderrSummary = summarizeOutput(captureText(stderr), undefined, stderr.totalBytes);
   const classification = classifyCommand(argv);
+  const argumentSanitization = sanitizeCommandArgv(argv);
+  const sanitizedError = result.error ? redactText(result.error).text : undefined;
 
   return {
     id,
-    argv,
+    argv: argumentSanitization.argv,
+    argumentRedaction: argumentSanitization.redaction,
     startedAt: started.toISOString(),
     endedAt: ended.toISOString(),
     durationMs: Math.max(0, ended.getTime() - started.getTime()),
     exitCode: result.exitCode,
     signal: result.signal,
-    error: result.error,
+    ...(sanitizedError ? { error: sanitizedError } : {}),
     stdout: stdoutSummary,
     stderr: stderrSummary,
     classification,
     evidence: evidenceForCommand(
       classification,
       result.exitCode,
-      !!result.error || result.signal !== null
+      !!sanitizedError || result.signal !== null
     ),
-    redaction: combineRedactionSummaries([stdoutSummary, stderrSummary])
+    redaction: combineRedactionSummaries(
+      [stdoutSummary, stderrSummary],
+      [],
+      [],
+      [argumentSanitization.redaction]
+    )
   };
 }
 
